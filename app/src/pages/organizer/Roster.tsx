@@ -5,13 +5,14 @@
 // flows straight into the certificate.
 
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../../store/AppStore';
 import { Avatar, SectionHead, useToast } from '../../components/ui';
 import { Icon } from '../../components/icons';
 import { clock, creditLabel } from '../../lib/format';
 
 export function Roster() {
-  const { data, activeEvent, creditRule, registerAttendee, toggleCheckIn, toggleEvaluation, earnedHoursFor } = useStore();
+  const { data, activeEvent, creditRule, registerAttendee, toggleCheckIn, toggleEvaluation, setPartialAttendance, earnedHoursFor } = useStore();
   const toast = useToast();
 
   const sessionSlots = data.agenda
@@ -30,6 +31,8 @@ export function Roster() {
     [data.attendance, activeSlot],
   );
   const checkedInHere = recordsForSlot.size;
+  const slotEvals = data.attendance.filter((a) => a.slotId === activeSlot && a.evaluation);
+  const slotAvgRating = slotEvals.length ? slotEvals.reduce((n, a) => n + (a.evaluation?.rating ?? 0), 0) / slotEvals.length : 0;
 
   function attendedCount(attendeeId: string) {
     return data.attendance.filter((a) => a.attendeeId === attendeeId && a.checkInAt).length;
@@ -39,7 +42,8 @@ export function Roster() {
     <div className="stack-lg">
       <SectionHead eyebrow="Step 4 · Registration & attendance" title="Roster & check-in"
         action={
-          <div className="row gap-sm">
+          <div className="row-wrap gap-sm">
+            <Link to="/kiosk" className="btn btn-outline btn-sm" target="_blank"><Icon.ClipboardCheck size={15} /> Open kiosk</Link>
             <button type="button" className="btn btn-outline btn-sm" onClick={() => toast.push('Pulled 0 new — Eventbrite is in sync', 'Plug')}>
               <Icon.Plug size={15} /> Sync Eventbrite
             </button>
@@ -66,7 +70,10 @@ export function Roster() {
         <div className="between wrap" style={{ gap: '0.75rem' }}>
           <div className="stack-sm" style={{ gap: '0.15rem' }}>
             <span className="eyebrow">Simulate door check-in for</span>
-            <strong>{sub?.title ?? slot?.title}</strong>
+            <span className="row gap-sm wrap">
+              <strong>{sub?.title ?? slot?.title}</strong>
+              {slotEvals.length > 0 && <span className="badge badge-amber"><Icon.Star size={12} /> {slotAvgRating.toFixed(1)} · {slotEvals.length} eval{slotEvals.length === 1 ? '' : 's'}</span>}
+            </span>
             {slot && <span className="tiny faint">{clock(slot.startMinutes)}–{clock(slot.endMinutes)} · {slot.room} · {creditLabel((slot.endMinutes - slot.startMinutes) / creditRule.minutesPerCreditHour, creditRule.unitLabel)} if attended</span>}
           </div>
           <label className="row gap-sm">
@@ -110,22 +117,42 @@ export function Roster() {
                     </td>
                     <td className="small">{a.district}</td>
                     <td>
-                      <button
-                        type="button"
-                        className={`btn btn-sm ${here ? 'btn-ink' : 'btn-outline'}`}
-                        aria-pressed={here}
-                        onClick={() => toggleCheckIn(a.id, activeSlot)}
-                      >
-                        {here ? <><Icon.Check size={14} /> In</> : 'Check in'}
-                      </button>
+                      <div className="row gap-sm">
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${here ? 'btn-ink' : 'btn-outline'}`}
+                          aria-pressed={here}
+                          onClick={() => toggleCheckIn(a.id, activeSlot)}
+                        >
+                          {here ? <><Icon.Check size={14} /> In</> : 'Check in'}
+                        </button>
+                        {here && slot && (() => {
+                          const full = slot.endMinutes - slot.startMinutes;
+                          const left = (rec?.minutesAttended ?? full) < full;
+                          return (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline"
+                              aria-pressed={left}
+                              title={left ? 'Marked as left early (70%)' : 'Mark as left early'}
+                              onClick={() => setPartialAttendance(a.id, activeSlot, left ? 1 : 0.7)}
+                            >
+                              {left ? <><Icon.Clock size={13} /> Left early</> : 'Full'}
+                            </button>
+                          );
+                        })()}
+                      </div>
                     </td>
                     <td>
                       {here ? (
-                        <label className="switch" title="Mark session evaluation complete">
-                          <input type="checkbox" checked={!!rec?.evaluationComplete} onChange={() => toggleEvaluation(a.id, activeSlot)} />
-                          <span className="switch-track"><span className="switch-knob" /></span>
-                          <span className="tiny faint">{rec?.evaluationComplete ? 'Done' : 'Pending'}</span>
-                        </label>
+                        <div className="row gap-sm">
+                          <label className="switch" title="Mark session evaluation complete">
+                            <input type="checkbox" checked={!!rec?.evaluationComplete} onChange={() => toggleEvaluation(a.id, activeSlot)} />
+                            <span className="switch-track"><span className="switch-knob" /></span>
+                            <span className="tiny faint">{rec?.evaluationComplete ? 'Done' : 'Pending'}</span>
+                          </label>
+                          <Link to={`/evaluate/${a.id}/${activeSlot}`} className="btn btn-ghost btn-sm" title="Open the evaluation form" target="_blank"><Icon.Star size={13} /></Link>
+                        </div>
                       ) : (
                         <span className="tiny faint">—</span>
                       )}

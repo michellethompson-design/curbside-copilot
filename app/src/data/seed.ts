@@ -16,6 +16,7 @@ import type {
   AttendanceRecord,
   Certificate,
   CreditRule,
+  CFPQuestion,
   Event,
   Integration,
   Organization,
@@ -69,6 +70,13 @@ const creditRules: CreditRule[] = [
   },
 ];
 
+// ── CFP custom questions (organizer-authored, shown in the submission form) ───
+const liveCfpQuestions: CFPQuestion[] = [
+  { id: 'q_grade', label: 'Which grade band is this for?', type: 'select', required: true, options: ['K-2', '3-5', '6-8', '9-12', 'All grades'] },
+  { id: 'q_materials', label: 'Will you share downloadable materials with attendees?', type: 'checkbox', required: false },
+  { id: 'q_prior', label: 'Have you presented this session before?', type: 'short', required: false, hint: 'Where and when, if so — optional.' },
+];
+
 // ── Events ────────────────────────────────────────────────────────────────────
 const events: Event[] = [
   {
@@ -99,6 +107,7 @@ const events: Event[] = [
     ],
     rooms: ['Fir Auditorium', 'Cedar Hall', 'Maple Room', 'Birch Studio'],
     creditRuleId: 'rule_clock',
+    customQuestions: liveCfpQuestions,
   },
   {
     id: 'evt_tls25',
@@ -118,6 +127,7 @@ const events: Event[] = [
     tracks: ['Literacy & Language', 'STEM & Computational Thinking', 'Equity & Inclusion', 'Assessment & Data'],
     rooms: ['Fir Auditorium', 'Cedar Hall', 'Maple Room', 'Birch Studio'],
     creditRuleId: 'rule_clock',
+    customQuestions: [],
     metrics: {
       submissions: 84,
       accepted: 32,
@@ -147,6 +157,7 @@ const events: Event[] = [
     tracks: ['STEM & Computational Thinking', 'EdTech & AI', 'Assessment & Data'],
     rooms: ['Lab A', 'Lab B', 'Lecture Hall'],
     creditRuleId: 'rule_clock',
+    customQuestions: [],
     metrics: {
       submissions: 61,
       accepted: 24,
@@ -176,6 +187,7 @@ const events: Event[] = [
     tracks: ['Literacy & Language', 'Assessment & Data', 'Equity & Inclusion'],
     rooms: ['Cedar Hall', 'Maple Room'],
     creditRuleId: 'rule_clock',
+    customQuestions: [],
     metrics: {
       submissions: 47,
       accepted: 18,
@@ -217,7 +229,7 @@ const speakers: SpeakerProfile[] = [
     org: 'North Valley High School',
     role: 'Computer Science Teacher',
     location: 'North Valley, Cascadia',
-    avatarColor: '#2f8f7a',
+    avatarColor: '#1f7563',
     links: [{ label: 'GitHub Classroom resources', url: 'https://github.example/devon-cs' }],
     expertise: ['Computer Science', 'STEM', 'Inclusive pedagogy'],
     accessNeeds: 'Please provide a wireless lapel mic — I move around the room while presenting.',
@@ -233,7 +245,7 @@ const speakers: SpeakerProfile[] = [
     org: 'Cascadia Regional Education Cooperative',
     role: 'Literacy Specialist',
     location: 'Riverton, Cascadia',
-    avatarColor: '#c06f2a',
+    avatarColor: '#9c571c',
     links: [],
     expertise: ['Phonics', 'Structured literacy', 'Early reading'],
   },
@@ -263,7 +275,7 @@ const speakers: SpeakerProfile[] = [
     org: 'Eastlake School District',
     role: 'Assessment & Data Coordinator',
     location: 'Eastlake, Cascadia',
-    avatarColor: '#3f8fb0',
+    avatarColor: '#2d7491',
     links: [],
     expertise: ['Assessment', 'Data literacy', 'MTSS'],
   },
@@ -293,7 +305,7 @@ const speakers: SpeakerProfile[] = [
     org: 'North Valley School District',
     role: 'Director of Educational Technology',
     location: 'North Valley, Cascadia',
-    avatarColor: '#7a6cc0',
+    avatarColor: '#5f4fa8',
     links: [{ label: 'Newsletter', url: 'https://classroomstack.example' }],
     expertise: ['EdTech', 'AI in education', 'Digital citizenship'],
   },
@@ -308,7 +320,7 @@ const speakers: SpeakerProfile[] = [
     org: 'Cascadia Regional Education Cooperative',
     role: 'Accessibility & Special Education Lead',
     location: 'Riverton, Cascadia',
-    avatarColor: '#4f9e6a',
+    avatarColor: '#357f53',
     links: [],
     expertise: ['UDL', 'Accessibility', 'Special education'],
   },
@@ -316,8 +328,9 @@ const speakers: SpeakerProfile[] = [
 
 // ── Submissions ───────────────────────────────────────────────────────────────
 // Helper keeps the literal list readable; timestamps are plausible.
-type SubSeed = Omit<Submission, 'createdAt' | 'updatedAt' | 'submittedAt' | 'aiReview'> & {
+type SubSeed = Omit<Submission, 'createdAt' | 'updatedAt' | 'submittedAt' | 'aiReview' | 'customAnswers'> & {
   submittedAt?: string;
+  customAnswers?: Record<string, string>;
   review?: 'auto' | 'none'; // 'auto' = pre-generate an AI review; 'none' = leave for organizer
 };
 
@@ -368,6 +381,7 @@ const subSeeds: SubSeed[] = [
     mode: 'in_person',
     coSpeakers: [],
     tags: ['phonics', 'structured literacy', 'early reading'],
+    customAnswers: { q_grade: 'K-2', q_materials: 'Yes', q_prior: 'Cascadia Literacy Forum, 2024' },
     status: 'scheduled',
     organizerDecision: { decision: 'accept', decidedBy: 'M. Hayes', decidedAt: '2026-05-06', overrodeAI: false },
     draftStep: 5,
@@ -394,6 +408,7 @@ const subSeeds: SubSeed[] = [
     mode: 'in_person',
     coSpeakers: [],
     tags: ['computer science', 'equity', 'engagement'],
+    customAnswers: { q_grade: '9-12', q_materials: 'Yes' },
     status: 'scheduled',
     organizerDecision: { decision: 'accept', decidedBy: 'M. Hayes', decidedAt: '2026-05-07', overrodeAI: false },
     draftStep: 5,
@@ -685,6 +700,9 @@ attendees.forEach((att, i) => {
     // Every 6th (attendee+slot) leaves early → below the 90% threshold.
     const partial = (i + j) % 6 === 0 && slotId !== 'slot_keynote';
     const minutes = partial ? Math.round(full * 0.7) : full;
+    // Most complete the evaluation; every 4th hasn't yet (credit withheld pending eval).
+    const evalDone = (i + j) % 4 !== 0;
+    const rating = 4 + ((i + j) % 2); // 4 or 5
     attendance.push({
       id: `attd_${att.id}_${slotId}`,
       attendeeId: att.id,
@@ -692,8 +710,15 @@ attendees.forEach((att, i) => {
       checkInAt: `${TODAY}T0${9 + Math.floor(j / 3)}:0${j % 6}:00`,
       checkOutAt: `${TODAY}T17:00:00`,
       minutesAttended: minutes,
-      // Most complete the evaluation; every 4th hasn't yet (credit withheld pending eval).
-      evaluationComplete: (i + j) % 4 !== 0,
+      evaluationComplete: evalDone,
+      evaluation: evalDone
+        ? {
+            rating,
+            pacing: (i + j) % 5 === 0 ? 'too_fast' : 'just_right',
+            applicable: (i + j) % 7 !== 0,
+            submittedAt: `${TODAY}T12:00:00`,
+          }
+        : undefined,
     });
   });
 });
@@ -745,7 +770,7 @@ export function buildSeed(): AppData {
   });
 
   return {
-    version: 1,
+    version: 2,
     organization,
     creditRules,
     events,
@@ -761,9 +786,10 @@ export function buildSeed(): AppData {
 }
 
 function stripSeed(seed: SubSeed): Submission {
-  const { review, submittedAt, ...rest } = seed;
+  const { review, submittedAt, customAnswers, ...rest } = seed;
   return {
     ...rest,
+    customAnswers: customAnswers ?? {},
     createdAt: '2026-04-15',
     updatedAt: submittedAt ?? '2026-04-15',
     submittedAt,

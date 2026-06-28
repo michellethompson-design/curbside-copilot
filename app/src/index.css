@@ -20,30 +20,30 @@
   --line-strong: #d6c9b3;
 
   --ink: #241a3d;        /* primary text */
-  --ink-soft: #5b5270;   /* secondary text */
-  --ink-faint: #8a8299;  /* tertiary text */
+  --ink-soft: #564d6b;   /* secondary text — WCAG AA on paper/surface */
+  --ink-faint: #635a79;  /* tertiary text — WCAG AA on paper/surface */
 
   --indigo: #4b3b8f;
   --indigo-deep: #2e2356;
   --indigo-soft: #ede9f8;
   --indigo-line: #d6cdf0;
 
-  --coral: #d9583a;      /* primary action */
-  --coral-deep: #b8442b;
+  --coral: #c0472a;      /* primary action — AA with white text */
+  --coral-deep: #a23a20;
   --coral-soft: #fbe7df;
 
-  --gold: #a9741f;       /* THE PAYOFF: credits + certificates */
-  --gold-bright: #c8902e;
+  --gold: #8a5d12;       /* THE PAYOFF: credits + certificates — AA on cream & with white */
+  --gold-bright: #c8902e; /* decorative only (seals, gradients) */
   --gold-soft: #f6ecd6;
   --gold-line: #e6d4a8;
 
-  --green: #2f7d5b;
+  --green: #246648;
   --green-soft: #dcefe4;
-  --amber: #b87514;
+  --amber: #8a5810;
   --amber-soft: #f8ecd5;
   --red: #c0392b;
   --red-soft: #fbe3df;
-  --blue: #2f6f9e;
+  --blue: #2b6088;
   --blue-soft: #dde9f2;
 
   --radius-sm: 8px;
@@ -291,7 +291,7 @@ input, textarea, select { font-family: inherit; font-size: 1rem; color: var(--in
   font-weight: 500; transition: all 0.14s ease; min-height: 44px;
 }
 .chip-toggle:hover { border-color: var(--indigo); color: var(--ink); }
-.chip-toggle[aria-pressed='true'] { background: var(--indigo-deep); color: #fff; border-color: var(--indigo-deep); }
+.chip-toggle[aria-pressed='true'], .chip-toggle.is-on { background: var(--indigo-deep); color: #fff; border-color: var(--indigo-deep); }
 
 /* Switch */
 .switch { display: inline-flex; align-items: center; gap: 0.6rem; cursor: pointer; }

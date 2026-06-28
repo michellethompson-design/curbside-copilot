@@ -46,7 +46,11 @@ export function CertificatePage() {
   }
 
   function standaloneHtml() {
-    const sessions = cert!.sessions.map((s) => `<tr><td>${s.title}</td><td style="text-align:right">${creditLabel(s.creditHours, cert!.unitLabel)}</td></tr>`).join('');
+    const isCompletion = cert!.type === 'completion';
+    const sessions = cert!.sessions.map((s) => `<tr><td>${s.title}</td><td style="text-align:right">${isCompletion ? creditLabel(s.creditHours, cert!.unitLabel) : 'Attended'}</td></tr>`).join('');
+    const totalLine = isCompletion
+      ? `${creditLabel(cert!.totalCreditHours, cert!.unitLabel)}${ceu ? ` &middot; ${ceu} CEU` : ''}`
+      : `${cert!.sessions.length} sessions attended`;
     return `<!doctype html><html><head><meta charset="utf-8"><title>Certificate ${cert!.serial}</title>
 <style>body{font-family:Georgia,serif;background:#faf7f1;color:#241a3d;margin:0;padding:40px}
 .c{max-width:780px;margin:auto;background:#fff;border:3px solid #e6d4a8;border-radius:18px;padding:48px;text-align:center}
@@ -59,7 +63,7 @@ table{width:100%;border-collapse:collapse;margin:20px 0;font-size:14px}td{paddin
 <p>has successfully ${cert!.type === 'completion' ? 'completed' : 'participated in'}</p>
 <h1>${event.name}</h1><p>${event.edition} · ${formatDate(event.startDate)} · ${event.venue}</p>
 <table>${sessions}</table>
-<div class="tot">${creditLabel(cert!.totalCreditHours, cert!.unitLabel)}${ceu ? ` &middot; ${ceu} CEU` : ''}</div>
+<div class="tot">${totalLine}</div>
 <div class="meta">Issued by ${cert!.issuingBody}<br>Provider ${cert!.providerNumber} · Serial ${cert!.serial} · Issued ${formatDate(cert!.issuedAt)}</div>
 </div></body></html>`;
   }
@@ -92,17 +96,24 @@ table{width:100%;border-collapse:collapse;margin:20px 0;font-size:14px}td{paddin
             {cert.sessions.map((s, i) => (
               <div className="row between small" key={i} style={{ gap: '1rem' }}>
                 <span style={{ textAlign: 'left' }}>{s.title}</span>
-                <span className="strong nowrap tabular">{creditLabel(s.creditHours, cert.unitLabel)}</span>
+                <span className="strong nowrap tabular">{cert.type === 'completion' ? creditLabel(s.creditHours, cert.unitLabel) : 'Attended'}</span>
               </div>
             ))}
           </div>
 
-          <div className="stat" style={{ alignItems: 'center' }}>
-            <span className="stat-value gold" style={{ fontSize: '2.4rem' }}>
-              {creditLabel(cert.totalCreditHours, cert.unitLabel)}
-            </span>
-            <span className="stat-label">{ceu ? `${ceu} CEU equivalent · ` : ''}awarded</span>
-          </div>
+          {cert.type === 'completion' ? (
+            <div className="stat" style={{ alignItems: 'center' }}>
+              <span className="stat-value gold" style={{ fontSize: '2.4rem' }}>
+                {creditLabel(cert.totalCreditHours, cert.unitLabel)}
+              </span>
+              <span className="stat-label">{ceu ? `${ceu} CEU equivalent · ` : ''}awarded</span>
+            </div>
+          ) : (
+            <div className="stat" style={{ alignItems: 'center' }}>
+              <span className="stat-value" style={{ fontSize: '1.8rem' }}>{cert.sessions.length} session{cert.sessions.length === 1 ? '' : 's'} attended</span>
+              <span className="stat-label">Certificate of participation · no clock hours earned</span>
+            </div>
+          )}
 
           <div className="divider" style={{ width: '100%' }} />
           <p className="tiny faint" style={{ margin: 0, maxWidth: '52ch' }}>

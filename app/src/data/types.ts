@@ -64,6 +64,18 @@ export interface CreditRule {
   notes: string;
 }
 
+// ── CFP configuration (organizer-authored submission form) ────────────────────
+export type CFPQuestionType = 'short' | 'long' | 'select' | 'checkbox';
+
+export interface CFPQuestion {
+  id: ID;
+  label: string;
+  type: CFPQuestionType;
+  required: boolean;
+  hint?: string;
+  options?: string[]; // for 'select'
+}
+
 // ── Event ─────────────────────────────────────────────────────────────────────
 export interface EventMetrics {
   submissions: number;
@@ -94,6 +106,7 @@ export interface Event {
   tracks: string[];
   rooms: string[];
   creditRuleId: ID;
+  customQuestions: CFPQuestion[]; // extra fields the organizer adds to the CFP form
   metrics?: EventMetrics; // snapshot, used for completed events in history
 }
 
@@ -141,6 +154,7 @@ export interface Submission {
   mode: DeliveryMode;
   coSpeakers: CoSpeaker[];
   tags: string[];
+  customAnswers: Record<string, string>; // answers to the event's CFP custom questions
   status: SubmissionStatus;
   aiReview?: AIReview;
   organizerDecision?: OrganizerDecision;
@@ -182,6 +196,7 @@ export interface OrganizerDecision {
   decidedAt: ISODate;
   note?: string;
   overrodeAI: boolean; // true if organizer disagreed with the suggestion
+  notifiedAt?: ISODate; // when the speaker was sent their decision letter (mocked email)
 }
 
 // ── Agenda ────────────────────────────────────────────────────────────────────
@@ -211,6 +226,15 @@ export interface Attendee {
   registrationSource: string; // 'Direct' | 'Eventbrite' (mocked) | 'District bulk'
 }
 
+// ── Session evaluation (required for credit; feeds session ratings) ───────────
+export interface SessionEvaluation {
+  rating: number; // 1–5 overall
+  pacing: 'too_slow' | 'just_right' | 'too_fast';
+  applicable: boolean; // "I can use this in my classroom"
+  comment?: string;
+  submittedAt: ISODate;
+}
+
 // ── Attendance (the credit-bearing record we own) ─────────────────────────────
 export interface AttendanceRecord {
   id: ID;
@@ -220,6 +244,7 @@ export interface AttendanceRecord {
   checkOutAt?: ISODate;
   minutesAttended: number;
   evaluationComplete: boolean;
+  evaluation?: SessionEvaluation;
 }
 
 // ── Credit ledger (derived, but persisted for audit) ──────────────────────────

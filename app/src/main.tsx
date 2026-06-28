@@ -14,8 +14,11 @@ import { Submit } from './pages/Submit';
 import { SpeakerPortal } from './pages/SpeakerPortal';
 import { EventPublic } from './pages/EventPublic';
 import { CertificatePage } from './pages/Certificate';
+import { Evaluate } from './pages/Evaluate';
+import { Kiosk } from './pages/Kiosk';
 import { NotFound } from './pages/NotFound';
 import { Dashboard } from './pages/organizer/Dashboard';
+import { CFPSetup } from './pages/organizer/CFPSetup';
 import { ReviewQueue } from './pages/organizer/ReviewQueue';
 import { Agenda } from './pages/organizer/Agenda';
 import { Roster } from './pages/organizer/Roster';
@@ -32,11 +35,14 @@ const router = createHashRouter([
       { path: 'speaker', element: <SpeakerPortal /> },
       { path: 'event', element: <EventPublic /> },
       { path: 'certificate/:id', element: <CertificatePage /> },
+      { path: 'evaluate/:attendeeId/:slotId', element: <Evaluate /> },
+      { path: 'kiosk', element: <Kiosk /> },
       {
         path: 'organizer',
         element: <OrganizerLayout />,
         children: [
           { index: true, element: <Dashboard /> },
+          { path: 'cfp', element: <CFPSetup /> },
           { path: 'review', element: <ReviewQueue /> },
           { path: 'agenda', element: <Agenda /> },
           { path: 'roster', element: <Roster /> },

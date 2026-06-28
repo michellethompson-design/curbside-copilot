@@ -27,8 +27,8 @@ accessibility procurement pressure and credit-hour needs both peak.
 cd app
 npm install
 npm run dev      # http://localhost:5173
-# or
 npm run build && npm run preview
+npm test         # 23 unit tests for the credit engine + AI review (vitest)
 ```
 
 No backend. State lives in the browser (`localStorage`) and seeds itself with a
@@ -56,11 +56,17 @@ Accessibility menu has a **Reset** that restores fresh demo data.
 7. **Dashboard & history** — `/organizer` and `/organizer/history`. Live metrics,
    total credits issued, and year-over-year continuity across past events.
 
-Secondary flows are functional too: agenda builder, roster/check-in, dashboard
-analytics, multi-event history, the public event page (`/event`), and the
-always-available accessibility preferences control. External integrations
-(Eventbrite, Stripe, Canvas LMS, Google Calendar, Mailchimp, HubSpot) are mocked
-hooks, never live.
+Secondary flows are functional too: organizer **CFP authoring** (`/organizer/cfp`
+— edit the public details, tracks, rooms, credit rule, and custom questions that
+appear live in the speaker flow), an **event switcher + create-event**, the agenda
+builder, roster/check-in with **partial-attendance** and a self-service **kiosk**
+(`/kiosk`), a real attendee **session-evaluation** form (`/evaluate/...`) that
+releases pending credit and feeds session ratings, **participation vs completion**
+certificates, **state credit-roster CSV export** + JSON backup, **blind review**
+mode and **decision-letter** notifications in the review queue, dashboard
+analytics, multi-event history, and the public event page (`/event`). External
+integrations (Eventbrite, Stripe, Canvas LMS, Google Calendar, Mailchimp, HubSpot)
+are mocked hooks, never live.
 
 ## Accessibility (structural, not a coat of paint)
 
@@ -71,6 +77,10 @@ forms with tied instructions and clear errors, resizable text, reflow, and
 reduced motion, high contrast, text size, density, and focus mode — are reachable
 from anywhere via the **Accessibility** button in the top bar.
 
+This is **audited, not just asserted**: every page was run through axe-core
+against the WCAG 2.0/2.1/2.2 A & AA rule sets and the whole app reports **zero
+violations** (color-contrast tokens were tuned to clear 4.5:1).
+
 ## Code map
 
 ```
@@ -78,7 +88,9 @@ app/src/
   data/types.ts        Clean, named domain model (documented in Run 2)
   data/seed.ts         Believable sample org/event/speakers/submissions/roster
   lib/ai.ts            AI first-pass review (deterministic, explainable stand-in)
+  lib/ai.test.ts       AI review tests (fit/quality, duplicate & off-topic flags)
   lib/credits.ts       Credit engine — attendance → clock hours → certificate
+  lib/credits.test.ts  Credit-engine tests (thresholds, rounding, ledger, CEU)
   store/AppStore.tsx   Single source of truth + localStorage persistence + actions
   store/Preferences.tsx Accessibility preferences (data-attributes on <html>)
   components/          Design system, app shell, nav, a11y toolbar, shared UI

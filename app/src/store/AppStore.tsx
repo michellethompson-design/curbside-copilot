@@ -18,6 +18,7 @@ import type {
   Certificate,
   CreditRule,
   Event,
+  SessionEvaluation,
   SpeakerProfile,
   Submission,
 } from '../data/types';
@@ -25,14 +26,14 @@ import { generateReview } from '../lib/ai';
 import { buildLedger, totalEarned } from '../lib/credits';
 import { makeId } from '../lib/format';
 
-const STORAGE_KEY = 'lectern.appdata.v1';
+const STORAGE_KEY = 'lectern.appdata.v2';
 
 function load(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as AppData;
-      if (parsed && parsed.version === 1) return parsed;
+      if (parsed && parsed.version === 2) return parsed;
     }
   } catch {
     /* fall through to seed */
@@ -45,6 +46,10 @@ export interface StoreValue {
   activeEvent: Event;
   creditRule: CreditRule;
   ruleFor: (eventId: string) => CreditRule;
+  // ── events ──
+  setActiveEvent: (eventId: string) => void;
+  updateEvent: (eventId: string, patch: Partial<Event>) => void;
+  createEvent: (partial: Partial<Event> & { name: string }) => string;
   // ── speakers ──
   updateSpeaker: (id: string, patch: Partial<SpeakerProfile>) => void;
   // ── submissions ──
@@ -52,6 +57,8 @@ export interface StoreValue {
   submitSubmission: (id: string) => void;
   runAIReview: (id: string) => void;
   decideSubmission: (id: string, decision: 'accept' | 'waitlist' | 'decline', note?: string) => void;
+  notifyDecision: (id: string) => void;
+  notifyAllDecided: () => number;
   // ── agenda ──
   scheduleSubmission: (submissionId: string, room: string, day: string, startMinutes: number) => void;
   unschedule: (slotId: string) => void;
@@ -60,6 +67,8 @@ export interface StoreValue {
   registerAttendee: (a: Omit<Attendee, 'id' | 'registeredAt'>) => void;
   toggleCheckIn: (attendeeId: string, slotId: string) => void;
   toggleEvaluation: (attendeeId: string, slotId: string) => void;
+  setPartialAttendance: (attendeeId: string, slotId: string, fraction: number) => void;
+  submitEvaluation: (attendeeId: string, slotId: string, evaluation: SessionEvaluation) => void;
   // ── credits / certificates ──
   earnedHoursFor: (attendeeId: string) => number;
   issueCertificate: (attendeeId: string) => string | undefined;
@@ -95,6 +104,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [data.events, data.activeEventId],
   );
   const creditRule = useMemo(() => ruleFor(activeEvent.id), [ruleFor, activeEvent.id]);
+
+  // ── events ──
+  const setActiveEvent = useCallback<StoreValue['setActiveEvent']>((eventId) => {
+    setData((d) => (d.events.some((e) => e.id === eventId) ? { ...d, activeEventId: eventId } : d));
+  }, []);
+
+  const updateEvent = useCallback<StoreValue['updateEvent']>((eventId, patch) => {
+    setData((d) => ({ ...d, events: d.events.map((e) => (e.id === eventId ? { ...e, ...patch } : e)) }));
+  }, []);
+
+  const createEvent = useCallback<StoreValue['createEvent']>((partial) => {
+    const id = makeId('evt');
+    setData((d) => {
+      const template = d.events.find((e) => e.id === d.activeEventId) ?? d.events[0];
+      const fresh: Event = {
+        id,
+        orgId: d.organization.id,
+        name: partial.name,
+        edition: partial.edition ?? '',
+        year: partial.year ?? new Date().getFullYear(),
+        status: 'cfp_open',
+        tagline: partial.tagline ?? '',
+        description: partial.description ?? '',
+        venue: partial.venue ?? '',
+        mode: partial.mode ?? 'in_person',
+        startDate: partial.startDate ?? template.startDate,
+        endDate: partial.endDate ?? template.endDate,
+        cfpOpenDate: partial.cfpOpenDate ?? template.cfpOpenDate,
+        cfpCloseDate: partial.cfpCloseDate ?? template.cfpCloseDate,
+        tracks: partial.tracks ?? [...template.tracks],
+        rooms: partial.rooms ?? [...template.rooms],
+        creditRuleId: partial.creditRuleId ?? template.creditRuleId,
+        customQuestions: partial.customQuestions ?? [],
+      };
+      return { ...d, events: [...d.events, fresh], activeEventId: id };
+    });
+    return id;
+  }, []);
 
   // ── speakers ──
   const updateSpeaker = useCallback<StoreValue['updateSpeaker']>((id, patch) => {
@@ -133,6 +180,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         mode: 'in_person',
         coSpeakers: [],
         tags: [],
+        customAnswers: {},
         status: 'draft',
         draftStep: 0,
         createdAt: now,
@@ -202,6 +250,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         };
       }),
     }));
+  }, []);
+
+  const notifyDecision = useCallback<StoreValue['notifyDecision']>((id) => {
+    const now = new Date().toISOString();
+    setData((d) => ({
+      ...d,
+      submissions: d.submissions.map((s) =>
+        s.id === id && s.organizerDecision
+          ? { ...s, organizerDecision: { ...s.organizerDecision, notifiedAt: now } }
+          : s,
+      ),
+    }));
+  }, []);
+
+  const notifyAllDecided = useCallback<StoreValue['notifyAllDecided']>(() => {
+    const now = new Date().toISOString();
+    let count = 0;
+    setData((d) => ({
+      ...d,
+      submissions: d.submissions.map((s) => {
+        if (s.eventId === d.activeEventId && s.organizerDecision && !s.organizerDecision.notifiedAt) {
+          count += 1;
+          return { ...s, organizerDecision: { ...s.organizerDecision, notifiedAt: now } };
+        }
+        return s;
+      }),
+    }));
+    return count;
   }, []);
 
   // ── agenda ──
@@ -302,6 +378,58 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setPartialAttendance = useCallback<StoreValue['setPartialAttendance']>((attendeeId, slotId, fraction) => {
+    setData((d) => {
+      const slot = d.agenda.find((s) => s.id === slotId);
+      if (!slot) return d;
+      const full = slot.endMinutes - slot.startMinutes;
+      return {
+        ...d,
+        attendance: d.attendance.map((a) =>
+          a.attendeeId === attendeeId && a.slotId === slotId
+            ? { ...a, minutesAttended: Math.round(full * Math.max(0, Math.min(1, fraction))) }
+            : a,
+        ),
+      };
+    });
+  }, []);
+
+  // Submit a real session evaluation. Recording it also satisfies the
+  // evaluation requirement, releasing any credit that was pending it.
+  const submitEvaluation = useCallback<StoreValue['submitEvaluation']>((attendeeId, slotId, evaluation) => {
+    setData((d) => {
+      const exists = d.attendance.some((a) => a.attendeeId === attendeeId && a.slotId === slotId);
+      if (exists) {
+        return {
+          ...d,
+          attendance: d.attendance.map((a) =>
+            a.attendeeId === attendeeId && a.slotId === slotId
+              ? { ...a, evaluation, evaluationComplete: true }
+              : a,
+          ),
+        };
+      }
+      // No prior check-in: an evaluation implies attendance, so create the record.
+      const slot = d.agenda.find((s) => s.id === slotId);
+      const full = slot ? slot.endMinutes - slot.startMinutes : 0;
+      return {
+        ...d,
+        attendance: [
+          ...d.attendance,
+          {
+            id: makeId('attd'),
+            attendeeId,
+            slotId,
+            checkInAt: new Date().toISOString(),
+            minutesAttended: full,
+            evaluationComplete: true,
+            evaluation,
+          },
+        ],
+      };
+    });
+  }, []);
+
   // ── credits / certificates ──
   const earnedHoursFor = useCallback(
     (attendeeId: string) => {
@@ -324,17 +452,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const ledger = buildLedger(attendeeId, activeEvent.id, d.agenda, rule, d.attendance, d.submissions);
       const earned = ledger.filter((l) => l.earned);
       const total = totalEarned(ledger);
-      if (total <= 0) return undefined;
+
+      // Sessions the attendee actually showed up for (some may not have earned credit).
+      const attendedSlotIds = new Set(
+        d.attendance.filter((a) => a.attendeeId === attendeeId && a.checkInAt).map((a) => a.slotId),
+      );
+      const attended = ledger.filter((l) => attendedSlotIds.has(l.slotId));
+
+      // Completion when credit was earned; participation when they attended but
+      // didn't clear the threshold (e.g. left early / evaluation outstanding).
+      const isCompletion = total > 0;
+      if (!isCompletion && attended.length === 0) return undefined;
+
       const existingCount = d.certificates.filter((c) => c.eventId === activeEvent.id).length;
+      const sessions = (isCompletion ? earned : attended).map((l) => ({
+        title: l.sessionTitle,
+        creditHours: isCompletion ? l.creditHours : 0,
+      }));
       return {
         id: makeId('cert'),
         serial: `TLS26-${(existingCount + 1).toString().padStart(6, '0')}`,
         attendeeId,
         eventId: activeEvent.id,
-        type: rule.certificateType,
+        type: isCompletion ? 'completion' : 'participation',
         totalCreditHours: total,
         unitLabel: rule.unitLabel,
-        sessions: earned.map((l) => ({ title: l.sessionTitle, creditHours: l.creditHours })),
+        sessions,
         issuedAt: new Date().toISOString(),
         issuingBody: d.organization.accreditationBody,
         providerNumber: d.organization.providerNumber,
@@ -387,17 +530,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     activeEvent,
     creditRule,
     ruleFor,
+    setActiveEvent,
+    updateEvent,
+    createEvent,
     updateSpeaker,
     upsertDraft,
     submitSubmission,
     runAIReview,
     decideSubmission,
+    notifyDecision,
+    notifyAllDecided,
     scheduleSubmission,
     unschedule,
     moveSlot,
     registerAttendee,
     toggleCheckIn,
     toggleEvaluation,
+    setPartialAttendance,
+    submitEvaluation,
     earnedHoursFor,
     issueCertificate,
     issueAllEligible,

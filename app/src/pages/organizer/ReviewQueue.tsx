@@ -22,8 +22,10 @@ const FLAG_META: Record<AIFlag['kind'], { label: string; icon: IconName }> = {
 };
 
 export function ReviewQueue() {
-  const { data, activeEvent } = useStore();
+  const { data, activeEvent, notifyAllDecided } = useStore();
+  const toast = useToast();
   const [filter, setFilter] = useState<Filter>('queue');
+  const [anonymous, setAnonymous] = useState(false);
 
   const subs = useMemo(
     () => data.submissions.filter((s) => s.eventId === activeEvent.id && s.status !== 'draft'),
@@ -36,6 +38,7 @@ export function ReviewQueue() {
   const shown = filter === 'queue' ? queue : filter === 'accepted' ? accepted : filter === 'declined' ? declined : subs;
 
   const aiAcceptCount = queue.filter((s) => s.aiReview?.suggestedDecision === 'accept').length;
+  const unnotified = subs.filter((s) => s.organizerDecision && !s.organizerDecision.notifiedAt).length;
 
   const FILTERS: { key: Filter; label: string; count: number }[] = [
     { key: 'queue', label: 'Needs a decision', count: queue.length },
@@ -61,13 +64,25 @@ export function ReviewQueue() {
         </p>
       </div>
 
-      <div className="scroll-x">
-        <div className="row" style={{ gap: '0.4rem', minWidth: 'max-content' }}>
-          {FILTERS.map((f) => (
-            <button key={f.key} type="button" className="chip-toggle" aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>
-              {f.label} <span className="badge badge-plain tiny" style={{ padding: '0 0.4rem' }}>{f.count}</span>
+      <div className="between wrap" style={{ gap: '0.75rem' }}>
+        <div className="scroll-x">
+          <div className="row" style={{ gap: '0.4rem', minWidth: 'max-content' }}>
+            {FILTERS.map((f) => (
+              <button key={f.key} type="button" className="chip-toggle" aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>
+                {f.label} <span className="badge badge-plain tiny" style={{ padding: '0 0.4rem' }}>{f.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="row-wrap gap-sm">
+          <button type="button" className="chip-toggle" aria-pressed={anonymous} onClick={() => setAnonymous((v) => !v)} title="Hide speaker identities while you evaluate, to reduce bias">
+            <Icon.Eye size={15} /> Blind review {anonymous ? 'on' : 'off'}
+          </button>
+          {unnotified > 0 && (
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => { const n = notifyAllDecided(); toast.push(`Sent ${n} decision letter${n === 1 ? '' : 's'} (mocked)`, 'Mail'); }}>
+              <Icon.Mail size={15} /> Send {unnotified} decision letter{unnotified === 1 ? '' : 's'}
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -75,7 +90,7 @@ export function ReviewQueue() {
         <div className="card"><EmptyState icon="CheckCircle" title="Nothing here">{filter === 'queue' ? 'Every submission has a decision. Nice work.' : 'No submissions in this view.'}</EmptyState></div>
       ) : (
         <div className="stack">
-          {shown.map((s) => <ReviewCard key={s.id} submission={s} />)}
+          {shown.map((s) => <ReviewCard key={s.id} submission={s} anonymous={anonymous} />)}
         </div>
       )}
     </div>
@@ -94,8 +109,8 @@ function SummaryCard({ icon, label, value, tone }: { icon: IconName; label: stri
   );
 }
 
-function ReviewCard({ submission: s }: { submission: Submission }) {
-  const { data, runAIReview, decideSubmission } = useStore();
+function ReviewCard({ submission: s, anonymous }: { submission: Submission; anonymous: boolean }) {
+  const { data, activeEvent, runAIReview, decideSubmission, notifyDecision } = useStore();
   const toast = useToast();
   const speaker = data.speakers.find((p) => p.id === s.speakerId);
   const [running, setRunning] = useState(false);
@@ -133,9 +148,16 @@ function ReviewCard({ submission: s }: { submission: Submission }) {
           </div>
           <h3 className="serif" style={{ fontSize: '1.25rem' }}>{s.title}</h3>
           {speaker && (
-            <span className="row gap-sm small muted">
-              <Avatar person={speaker} color={speaker.avatarColor} size="sm" /> {speaker.firstName} {speaker.lastName} · {speaker.org}
-            </span>
+            anonymous ? (
+              <span className="row gap-sm small muted">
+                <span className="avatar avatar-sm" style={{ background: 'var(--line-strong)' }} aria-hidden="true"><Icon.Eye size={14} /></span>
+                <span className="faint">Speaker hidden · blind review</span>
+              </span>
+            ) : (
+              <span className="row gap-sm small muted">
+                <Avatar person={speaker} color={speaker.avatarColor} size="sm" /> {speaker.firstName} {speaker.lastName} · {speaker.org}
+              </span>
+            )
           )}
         </div>
       </div>
@@ -193,6 +215,16 @@ function ReviewCard({ submission: s }: { submission: Submission }) {
               <ul className="dot-list">{s.learningObjectives.filter(Boolean).map((o, i) => <li key={i} className="small">{o}</li>)}</ul>
             </>
           )}
+          {activeEvent.customQuestions.length > 0 && (
+            <>
+              <span className="eyebrow">CFP answers</span>
+              <div className="stack-sm">
+                {activeEvent.customQuestions.map((q) => (
+                  <span key={q.id} className="small"><strong className="strong">{q.label}</strong> — {s.customAnswers[q.id] || <span className="faint">blank</span>}</span>
+                ))}
+              </div>
+            </>
+          )}
           {s.pitch && <p className="tiny faint" style={{ margin: 0 }}><strong>Note to organizer:</strong> {s.pitch}</p>}
         </div>
       </details>
@@ -200,10 +232,13 @@ function ReviewCard({ submission: s }: { submission: Submission }) {
       {/* Decision */}
       <div className="row between wrap" style={{ gap: '0.75rem', borderTop: '1px solid var(--line)', paddingTop: '0.9rem' }}>
         {decided ? (
-          <span className="small muted row gap-sm">
+          <span className="small muted row gap-sm wrap">
             <Icon.Check size={15} style={{ color: 'var(--green)' }} />
             {s.organizerDecision!.decision === 'accept' ? 'Accepted' : s.organizerDecision!.decision === 'waitlist' ? 'Waitlisted' : 'Declined'} by {s.organizerDecision!.decidedBy}
             {s.organizerDecision!.overrodeAI && <span className="badge badge-coral badge-plain tiny">overrode AI</span>}
+            {s.organizerDecision!.notifiedAt
+              ? <span className="badge badge-green badge-plain tiny"><Icon.Mail size={11} /> letter sent</span>
+              : <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '0 0.4rem', minHeight: 'auto' }} onClick={() => { notifyDecision(s.id); toast.push('Decision letter sent (mocked)', 'Mail'); }}><Icon.Mail size={13} /> Notify speaker</button>}
           </span>
         ) : (
           <span className="small faint">Your call:</span>

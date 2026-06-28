@@ -10,14 +10,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CURRENT_SPEAKER_ID } from '../data/seed';
-import type { AudienceLevel, DeliveryMode, SessionFormat, SpeakerProfile, Submission } from '../data/types';
+import type { AudienceLevel, CFPQuestion, CoSpeaker, DeliveryMode, Event, SessionFormat, SpeakerProfile, Submission } from '../data/types';
 import { Avatar, useToast } from '../components/ui';
 import { Icon } from '../components/icons';
 import { useStore } from '../store/AppStore';
 import { fullName } from '../lib/format';
 
-const STEPS = ['Your profile', 'The basics', 'Your talk', 'Learning objectives', 'Review & submit'];
-const MINUTES_LEFT = [4, 3, 2, 1, 1]; // calm estimate of time remaining, per step
+type StepKey = 'profile' | 'basics' | 'talk' | 'objectives' | 'questions' | 'review';
+const STEP_LABEL: Record<StepKey, string> = {
+  profile: 'Your profile',
+  basics: 'The basics',
+  talk: 'Your talk',
+  objectives: 'Learning objectives',
+  questions: 'A few event questions',
+  review: 'Review & submit',
+};
 
 const FORMATS: { value: SessionFormat; label: string; hint: string }[] = [
   { value: 'workshop', label: 'Workshop', hint: 'Hands-on, participants practice' },
@@ -76,7 +83,14 @@ function SubmitFlow({ draftId }: { draftId: string }) {
     const submission = data.submissions.find((s) => s.id === draftId)!;
     const speaker = data.speakers.find((s) => s.id === submission.speakerId) ?? data.speakers.find((s) => s.id === CURRENT_SPEAKER_ID)!;
 
-    const [step, setStep] = useState(Math.min(submission.draftStep ?? 0, STEPS.length - 1));
+    // Steps are dynamic: the custom-questions step only appears when the
+    // organizer added questions to this event's CFP.
+    const stepKeys: StepKey[] = ['profile', 'basics', 'talk', 'objectives'];
+    if (activeEvent.customQuestions.length > 0) stepKeys.push('questions');
+    stepKeys.push('review');
+
+    const [step, setStep] = useState(Math.min(submission.draftStep ?? 0, stepKeys.length - 1));
+    const stepKey = stepKeys[step];
     const [form, setForm] = useState<Submission>(submission);
     const [saved, setSaved] = useState(true);
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -104,27 +118,33 @@ function SubmitFlow({ draftId }: { draftId: string }) {
       headingRef.current?.focus();
     }, [step]);
 
-    function validate(s: number): boolean {
+    function validate(key: StepKey): boolean {
       const e: Record<string, string> = {};
-      if (s === 1) {
+      if (key === 'basics') {
         if (!form.title.trim()) e.title = 'Add a working title so reviewers know your talk.';
         else if (form.title.trim().length < 6) e.title = 'A few more words makes a stronger title.';
       }
-      if (s === 2) {
+      if (key === 'talk') {
         const words = form.abstract.trim().split(/\s+/).filter(Boolean).length;
         if (words < 12) e.abstract = 'Tell us a little more — aim for two or three sentences.';
       }
-      if (s === 3) {
+      if (key === 'objectives') {
         if (form.learningObjectives.filter((o) => o.trim()).length < 1)
           e.objectives = 'Add at least one objective — this is what earns attendees their credit.';
+      }
+      if (key === 'questions') {
+        for (const q of activeEvent.customQuestions) {
+          if (q.required && !(form.customAnswers[q.id] ?? '').trim())
+            e[`q_${q.id}`] = 'This question is required.';
+        }
       }
       setErrors(e);
       return Object.keys(e).length === 0;
     }
 
     function goNext() {
-      if (!validate(step)) return;
-      const next = Math.min(step + 1, STEPS.length - 1);
+      if (!validate(stepKey)) return;
+      const next = Math.min(step + 1, stepKeys.length - 1);
       persistNow({ draftStep: next });
       setStep(next);
     }
@@ -138,8 +158,12 @@ function SubmitFlow({ draftId }: { draftId: string }) {
       nav('/speaker');
     }
     function submit() {
-      if (!validate(1) || !validate(2) || !validate(3)) {
+      if (!validate('basics') || !validate('talk') || !validate('objectives') || !validate('questions')) {
         toast.push('A couple of fields still need attention', 'Alert');
+        // jump to the first step with an error
+        const order: StepKey[] = ['basics', 'talk', 'objectives', 'questions'];
+        const firstBad = order.find((k) => !validate(k));
+        if (firstBad) setStep(stepKeys.indexOf(firstBad));
         return;
       }
       persistNow();
@@ -148,7 +172,8 @@ function SubmitFlow({ draftId }: { draftId: string }) {
       nav('/speaker');
     }
 
-    const pct = Math.round(((step + 1) / STEPS.length) * 100);
+    const pct = Math.round(((step + 1) / stepKeys.length) * 100);
+    const minutesLeft = Math.max(1, stepKeys.length - 1 - step);
 
     return (
       <div className="container-narrow stack-lg">
@@ -157,7 +182,7 @@ function SubmitFlow({ draftId }: { draftId: string }) {
           <div className="between wrap">
             <div className="stack-sm" style={{ gap: '0.2rem' }}>
               <span className="eyebrow">Submit to {activeEvent.name}</span>
-              <span className="small muted">Step {step + 1} of {STEPS.length} · {STEPS[step]}</span>
+              <span className="small muted">Step {step + 1} of {stepKeys.length} · {STEP_LABEL[stepKey]}</span>
             </div>
             <span className="autosave" aria-live="polite">
               {saved ? (<><Icon.Check size={15} /> Saved</>) : (<><span className="spin" style={{ width: 13, height: 13 }} /> Saving…</>)}
@@ -165,20 +190,20 @@ function SubmitFlow({ draftId }: { draftId: string }) {
           </div>
           <div className="progress" aria-hidden="true"><span style={{ width: `${pct}%` }} /></div>
           <div className="row between tiny faint">
-            <span className="row" style={{ gap: '0.4rem' }}><Icon.Clock size={13} /> About {MINUTES_LEFT[step]} min left — no rush, your work is saved</span>
+            <span className="row" style={{ gap: '0.4rem' }}><Icon.Clock size={13} /> About {minutesLeft} min left — no rush, your work is saved</span>
           </div>
         </div>
 
         <div className="card card-lg stack-lg">
           <h1 ref={headingRef} tabIndex={-1} data-focus-silent style={{ fontSize: '1.7rem' }}>
-            {STEPS[step]}
+            {STEP_LABEL[stepKey]}
           </h1>
 
-          {step === 0 && (
+          {stepKey === 'profile' && (
             <ProfileStep speaker={speaker} onSave={(p) => updateSpeaker(speaker.id, p)} />
           )}
 
-          {step === 1 && (
+          {stepKey === 'basics' && (
             <div className="stack-lg">
               <Field label="Working title" required hint="You can polish it later." error={errors.title}>
                 <input
@@ -206,10 +231,11 @@ function SubmitFlow({ draftId }: { draftId: string }) {
               </div>
               <ChipChoice legend="Who is it for?" value={form.level} options={LEVELS} onChange={(v) => patch({ level: v as AudienceLevel })} />
               <ChipChoice legend="How will you deliver it?" value={form.mode} options={MODES} onChange={(v) => patch({ mode: v as DeliveryMode })} />
+              <CoSpeakerEditor coSpeakers={form.coSpeakers} onChange={(coSpeakers) => patch({ coSpeakers })} />
             </div>
           )}
 
-          {step === 2 && (
+          {stepKey === 'talk' && (
             <div className="stack-lg">
               <Field
                 label="Describe your talk" required error={errors.abstract}
@@ -230,7 +256,7 @@ function SubmitFlow({ draftId }: { draftId: string }) {
             </div>
           )}
 
-          {step === 3 && (
+          {stepKey === 'objectives' && (
             <ObjectivesStep
               objectives={form.learningObjectives}
               error={errors.objectives}
@@ -238,8 +264,22 @@ function SubmitFlow({ draftId }: { draftId: string }) {
             />
           )}
 
-          {step === 4 && (
-            <ReviewStep form={form} speakerName={fullName(speaker)} onJump={(s) => setStep(s)} />
+          {stepKey === 'questions' && (
+            <CustomQuestionsStep
+              questions={activeEvent.customQuestions}
+              answers={form.customAnswers}
+              errors={errors}
+              onChange={(customAnswers) => patch({ customAnswers })}
+            />
+          )}
+
+          {stepKey === 'review' && (
+            <ReviewStep
+              form={form}
+              event={activeEvent}
+              speakerName={fullName(speaker)}
+              onJump={(key) => setStep(stepKeys.indexOf(key))}
+            />
           )}
 
           {/* one clear primary action per screen */}
@@ -254,7 +294,7 @@ function SubmitFlow({ draftId }: { draftId: string }) {
                 <Icon.Save size={16} /> Save & exit
               </button>
             </div>
-            {step < STEPS.length - 1 ? (
+            {step < stepKeys.length - 1 ? (
               <button type="button" className="btn btn-primary btn-lg" onClick={goNext}>
                 Continue <Icon.Arrow size={18} />
               </button>
@@ -459,13 +499,94 @@ function ProfileStep({ speaker, onSave }: { speaker: SpeakerProfile; onSave: (p:
   );
 }
 
-function ReviewStep({ form, speakerName, onJump }: { form: Submission; speakerName: string; onJump: (s: number) => void }) {
-  const rows: { label: string; value: React.ReactNode; step: number }[] = [
-    { label: 'Title', value: form.title || <span className="faint">— not set —</span>, step: 1 },
-    { label: 'Format', value: `${form.format} · ${form.durationMinutes} min · ${form.mode.replace('_', ' ')}`, step: 1 },
-    { label: 'Track', value: form.track, step: 1 },
-    { label: 'Description', value: form.abstract || <span className="faint">— not set —</span>, step: 2 },
-    { label: 'Objectives', value: form.learningObjectives.filter(Boolean).length ? (<ul className="dot-list">{form.learningObjectives.filter(Boolean).map((o, i) => <li key={i}>{o}</li>)}</ul>) : <span className="faint">— none —</span>, step: 3 },
+function CoSpeakerEditor({ coSpeakers, onChange }: { coSpeakers: CoSpeaker[]; onChange: (c: CoSpeaker[]) => void }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  function add() {
+    if (!name.trim()) return;
+    onChange([...coSpeakers, { name: name.trim(), email: email.trim() }]);
+    setName(''); setEmail('');
+  }
+  return (
+    <Field label="Co-speakers" hint="Optional. Add anyone presenting with you — they’ll be invited to confirm.">
+      {coSpeakers.length > 0 && (
+        <div className="stack-sm" style={{ marginBottom: '0.4rem' }}>
+          {coSpeakers.map((c, i) => (
+            <div className="card card-quiet row between" key={i} style={{ padding: '0.5rem 0.8rem' }}>
+              <span className="small"><strong className="strong">{c.name}</strong> {c.email && <span className="faint">· {c.email}</span>}</span>
+              <button type="button" className="btn btn-ghost btn-sm" aria-label={`Remove ${c.name}`} onClick={() => onChange(coSpeakers.filter((_, idx) => idx !== i))}><Icon.Close size={14} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="row-wrap gap-sm">
+        <input className="input" style={{ flex: 1, minWidth: 140 }} placeholder="Name" aria-label="Co-speaker name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Email (optional)" aria-label="Co-speaker email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} />
+        <button type="button" className="btn btn-outline" onClick={add}><Icon.Plus size={15} /> Add</button>
+      </div>
+    </Field>
+  );
+}
+
+function CustomQuestionsStep({
+  questions, answers, errors, onChange,
+}: { questions: CFPQuestion[]; answers: Record<string, string>; errors: Record<string, string>; onChange: (a: Record<string, string>) => void }) {
+  function set(id: string, v: string) {
+    onChange({ ...answers, [id]: v });
+  }
+  return (
+    <div className="stack-lg">
+      <div className="card card-quiet" style={{ padding: '0.9rem 1.1rem' }}>
+        <p className="small" style={{ margin: 0 }}>
+          <strong className="strong">A few questions from the organizers.</strong> These are specific to this event.
+        </p>
+      </div>
+      {questions.map((q) => {
+        const err = errors[`q_${q.id}`];
+        const val = answers[q.id] ?? '';
+        return (
+          <Field key={q.id} label={q.label} required={q.required} hint={q.hint} error={err}>
+            {q.type === 'short' && (
+              <input className="input" value={val} aria-invalid={!!err} onChange={(e) => set(q.id, e.target.value)} />
+            )}
+            {q.type === 'long' && (
+              <textarea className="textarea" rows={3} value={val} aria-invalid={!!err} onChange={(e) => set(q.id, e.target.value)} />
+            )}
+            {q.type === 'select' && (
+              <select className="select" value={val} aria-invalid={!!err} onChange={(e) => set(q.id, e.target.value)}>
+                <option value="">Choose…</option>
+                {(q.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            )}
+            {q.type === 'checkbox' && (
+              <div className="pill-row">
+                {['Yes', 'No'].map((opt) => (
+                  <button key={opt} type="button" className="chip-toggle" aria-pressed={val === opt} onClick={() => set(q.id, opt)}>
+                    {val === opt && <Icon.Check size={15} />}{opt}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Field>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReviewStep({ form, event, speakerName, onJump }: { form: Submission; event: Event; speakerName: string; onJump: (key: StepKey) => void }) {
+  const rows: { label: string; value: React.ReactNode; key: StepKey }[] = [
+    { label: 'Title', value: form.title || <span className="faint">— not set —</span>, key: 'basics' },
+    { label: 'Format', value: `${form.format} · ${form.durationMinutes} min · ${form.mode.replace('_', ' ')}`, key: 'basics' },
+    { label: 'Track', value: form.track, key: 'basics' },
+    ...(form.coSpeakers.length ? [{ label: 'Co-speakers', value: form.coSpeakers.map((c) => c.name).join(', '), key: 'basics' as StepKey }] : []),
+    { label: 'Description', value: form.abstract || <span className="faint">— not set —</span>, key: 'talk' },
+    { label: 'Objectives', value: form.learningObjectives.filter(Boolean).length ? (<ul className="dot-list">{form.learningObjectives.filter(Boolean).map((o, i) => <li key={i}>{o}</li>)}</ul>) : <span className="faint">— none —</span>, key: 'objectives' },
+    ...event.customQuestions.map((q) => ({
+      label: q.label,
+      value: form.customAnswers[q.id] ? form.customAnswers[q.id] : <span className="faint">— blank —</span>,
+      key: 'questions' as StepKey,
+    })),
   ];
   return (
     <div className="stack-lg">
@@ -473,13 +594,13 @@ function ReviewStep({ form, speakerName, onJump }: { form: Submission; speakerNa
         <p className="small" style={{ margin: 0 }}>Presenting as <strong className="strong">{speakerName}</strong>. Review below, jump back to any step to change something, then submit.</p>
       </div>
       <div className="stack">
-        {rows.map((r) => (
-          <div className="row between align-start" key={r.label} style={{ gap: '1rem', borderBottom: '1px solid var(--line)', paddingBottom: '0.7rem' }}>
+        {rows.map((r, i) => (
+          <div className="row between align-start" key={i} style={{ gap: '1rem', borderBottom: '1px solid var(--line)', paddingBottom: '0.7rem' }}>
             <div className="stack-sm grow" style={{ gap: '0.2rem' }}>
               <span className="eyebrow">{r.label}</span>
               <div className="small" style={{ color: 'var(--ink)' }}>{r.value}</div>
             </div>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onJump(r.step)}>Edit</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onJump(r.key)}>Edit</button>
           </div>
         ))}
       </div>
