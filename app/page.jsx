@@ -1,15 +1,17 @@
+'use client';
+
 import React, { useEffect, useRef, useState } from 'react';
-import { fetchConfig, analyze } from './api.js';
+import { fetchConfig, analyze } from './api-client.js';
 import Uploader from './components/Uploader.jsx';
 import Controls from './components/Controls.jsx';
 import ResultsView from './components/ResultsView.jsx';
 import PrivacyNote from './components/PrivacyNote.jsx';
 
-export default function App() {
+export default function Page() {
   const [config, setConfig] = useState(null);
   const [configError, setConfigError] = useState(null);
 
-  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem('fe_api_key') || '');
+  const [apiKey, setApiKey] = useState('');
   const [strictness, setStrictness] = useState('medium');
 
   const [items, setItems] = useState([]);
@@ -18,6 +20,11 @@ export default function App() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
+
+  // Load the persisted key from session on mount (client only).
+  useEffect(() => {
+    setApiKey(sessionStorage.getItem('abcd_api_key') || '');
+  }, []);
 
   useEffect(() => {
     fetchConfig()
@@ -30,8 +37,8 @@ export default function App() {
 
   // Keep the key only for the session, never in localStorage.
   useEffect(() => {
-    if (apiKey) sessionStorage.setItem('fe_api_key', apiKey);
-    else sessionStorage.removeItem('fe_api_key');
+    if (apiKey) sessionStorage.setItem('abcd_api_key', apiKey);
+    else sessionStorage.removeItem('abcd_api_key');
   }, [apiKey]);
 
   const canRun = config && (config.demoMode || config.hasServerKey || apiKey.trim());
@@ -54,10 +61,7 @@ export default function App() {
         {
           onStart: (m) => setProgress({ done: 0, total: m.totalFiles }),
           onResult: (m) => {
-            setItems((prev) => {
-              const next = [...prev, m];
-              return next;
-            });
+            setItems((prev) => [...prev, m]);
             setSelectedId((cur) => cur ?? m.image_id);
             setProgress((p) => ({ ...p, done: p.done + 1 }));
           },
@@ -89,7 +93,11 @@ export default function App() {
     );
   }
   if (!config) {
-    return <div className="app"><div className="loading">Loading…</div></div>;
+    return (
+      <div className="app">
+        <div className="loading">Loading…</div>
+      </div>
+    );
   }
 
   const brand = config.brand;
@@ -119,16 +127,10 @@ export default function App() {
         setStrictness={setStrictness}
       />
 
-      <Uploader
-        config={config}
-        disabled={status === 'running' || !canRun}
-        onFiles={run}
-      />
+      <Uploader config={config} disabled={status === 'running' || !canRun} onFiles={run} />
 
       {!canRun && (
-        <p className="hint hint-warn">
-          Add your Claude API key above to start screening.
-        </p>
+        <p className="hint hint-warn">Add your Claude API key above to start screening.</p>
       )}
 
       {status === 'running' && (
@@ -141,12 +143,7 @@ export default function App() {
 
       {error && <div className="fatal" role="alert">{error}</div>}
 
-      <ResultsView
-        items={items}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        status={status}
-      />
+      <ResultsView items={items} selectedId={selectedId} onSelect={setSelectedId} status={status} />
 
       <PrivacyNote config={config} />
 

@@ -1,7 +1,7 @@
 # ABCD — Product Requirements Document
 
 **Codename:** ABCD
-**Public name:** Fresh Eyes (see Open Decisions)
+**Public name:** ABCD (clinical acronym; see Open Decisions)
 **Document owner:** Michelle Thompson
 **Status:** Draft v1, ready for build handoff
 **Intended reader:** A developer or build agent constructing the app
@@ -254,7 +254,7 @@ Capture per-flag user feedback (agree / disagree) starting in v1.1 so real dispu
 
 ## 15. Open decisions
 
-1. **Public product name.** ~~The internal codename may not land with brand-safety buyers at large companies. Decide on a public-facing name separate from the codename.~~ **Resolved:** the public name is **Fresh Eyes**. It is set in one place — `shared/brand.js` — so it can be changed trivially without touching the rest of the codebase. The vulgar codename expansion is deliberately kept out of this repo's git history.
+1. **Public product name.** ~~The internal codename may not land with brand-safety buyers at large companies. Decide on a public-facing name separate from the codename.~~ **Resolved:** the public name is the clinical acronym **ABCD**, deliberately never spelled out. It is set in one place — `lib/brand.js` — so it can be changed trivially without touching the rest of the codebase. The vulgar codename expansion is deliberately kept out of this repo's git history.
 2. **Overlay method.** Approximate bounding boxes versus coarse grid. **Resolved (build):** shipped approximate normalized boxes (0–1000 per axis), rendered as translucent regions explicitly labeled "approximate," with the written report carrying the detail. The schema/renderer are box-based; a coarse-grid fallback can be layered later if boxes prove too noisy on real assets.
 3. **Hosted versus open-only.** Confirm whether a hosted paid tier is in the near-term plan or strictly later. *(Still owner's call — the MVP is open-only and BYO-key; nothing in the build blocks a future hosted wrapper.)*
 4. **Default strictness for MVP.** ~~Confirm medium.~~ **Resolved:** ships at **medium** by default. The low/medium/high dial is also wired in now (the schema always supported it), defaulting to medium.

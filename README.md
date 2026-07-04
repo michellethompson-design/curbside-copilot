@@ -1,21 +1,22 @@
-# Fresh Eyes
+# ABCD
 
 **A cold, outside-eye QA pass for your design assets.**
 
-Fresh Eyes screens logos, ads, icons, packaging, and other marketing artwork for
+ABCD screens logos, ads, icons, packaging, and other marketing artwork for
 *accidental* phallic, vulvar, or breast-like imagery — the kind everyone on the
 team stopped seeing after staring at the file for hours — before it ships to a
 client, a print run, or the public. It looks at the work cold and explains what
 an outside viewer might read into it, with a severity, a confidence, an
 approximate location, and a plain-language reason for every flag.
 
-The detection engine is Claude's vision capability. Fresh Eyes wraps it in a web
-app that draws flagged regions on your own asset and gives you the reasoning so
-you can make the call. **The tool advises; you decide what ships.**
+The detection engine is Claude's vision capability. ABCD wraps it in a web app
+that draws flagged regions on your own asset and gives you the reasoning so you
+can make the call. **The tool advises; you decide what ships.**
 
-> This is the standalone app built from [`docs/PRD.md`](docs/PRD.md).
-> "ABCD" is the internal codename; **Fresh Eyes** is the public name, set in one
-> place — [`shared/brand.js`](shared/brand.js) — so it can be changed trivially.
+> Built with Next.js (App Router). This is the standalone app from
+> [`docs/PRD.md`](docs/PRD.md). The public name is the clinical acronym **ABCD**,
+> set in one place — [`lib/brand.js`](lib/brand.js) — so it can be changed
+> trivially.
 
 ---
 
@@ -38,18 +39,17 @@ you can make the call. **The tool advises; you decide what ships.**
 
 ### The design decision that matters most
 
-Fresh Eyes leans toward **silence** on genuinely ambiguous shapes. A tool that
-flags innocent curves gets turned off in a week, so the flagging threshold is
-guarded harder than anything else. A confident flag on a coincidental curve is
-the thing that kills the product; the prompt is written accordingly.
+ABCD leans toward **silence** on genuinely ambiguous shapes. A tool that flags
+innocent curves gets turned off in a week, so the flagging threshold is guarded
+harder than anything else. A confident flag on a coincidental curve is the thing
+that kills the product; the prompt is written accordingly.
 
 ### Approximate regions, by design
 
-Vision models do not return pixel-tight bounding boxes. Fresh Eyes asks for
-normalized coordinates on a 0–1000 scale and renders them as translucent regions
-**labeled approximate**. The written report carries the real explanatory weight
-(it describes the location in words too). See [`docs/PRD.md`](docs/PRD.md)
-Section 7.
+Vision models do not return pixel-tight bounding boxes. ABCD asks for normalized
+coordinates on a 0–1000 scale and renders them as translucent regions **labeled
+approximate**. The written report carries the real explanatory weight (it
+describes the location in words too). See [`docs/PRD.md`](docs/PRD.md) Section 7.
 
 ---
 
@@ -67,14 +67,14 @@ cp .env.example .env         # optional; edit if you want a server key or demo m
 
 ### Run it
 
-**Development** (Vite dev server + API with hot reload):
+**Development** (hot reload, on port 8787):
 
 ```bash
 npm run dev
-# open http://localhost:5173
+# open http://localhost:8787
 ```
 
-**Production** (build the frontend, serve everything from the Node server):
+**Production**:
 
 ```bash
 npm run build
@@ -87,14 +87,14 @@ results so you can exercise the whole UI (overlay, report, batch streaming,
 all-clear state):
 
 ```bash
-DEMO_MODE=1 npm start
+DEMO_MODE=1 npm run dev
 ```
 
 ---
 
 ## Bring-your-own-key
 
-Fresh Eyes never ships with a key. There are two ways to supply one:
+ABCD never ships with a key. There are two ways to supply one:
 
 1. **In the app (recommended for privacy).** Paste your Claude API key into the
    key field. It is held in your browser session only, sent with your request,
@@ -111,7 +111,7 @@ All via environment variables (see [`.env.example`](.env.example)):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PORT` | `8787` | Server port. |
+| `PORT` | `8787` | Server port (`npm run dev`/`start` pass `-p 8787`). |
 | `ANTHROPIC_API_KEY` | *(empty)* | Optional server-side fallback key. |
 | `CLAUDE_MODEL` | `claude-sonnet-5` | Vision model used for analysis. |
 | `DEMO_MODE` | `0` | `1` = no API calls, canned results. |
@@ -120,11 +120,11 @@ All via environment variables (see [`.env.example`](.env.example)):
 
 ## Cost
 
-Fresh Eyes makes **one vision API call per image** (and one per PDF page). Cost
-scales linearly with batch size and is billed to whichever key made the request —
-with BYO-key, that's the user. A typical logo screen is a single image plus a
-short JSON response, so per-image cost is small, but a 50-file batch is 50 calls.
-Check current per-token pricing for your chosen model on the
+ABCD makes **one vision API call per image** (and one per PDF page). Cost scales
+linearly with batch size and is billed to whichever key made the request — with
+BYO-key, that's the user. A typical logo screen is a single image plus a short
+JSON response, so per-image cost is small, but a 50-file batch is 50 calls. Check
+current per-token pricing for your chosen model on the
 [Anthropic pricing page](https://www.anthropic.com/pricing) and size batches
 accordingly. Requests are processed sequentially to respect rate limits rather
 than firing all at once.
@@ -140,27 +140,36 @@ than firing all at once.
 
 ## How it works (architecture)
 
+Single Next.js app — React UI and API route handlers in one project.
+
 ```
-web/                     React + Vite single-page app
-  src/App.jsx              state, streaming orchestration
-  src/api.js               reads the NDJSON result stream
-  src/components/          Uploader, Controls, ImageViewer (overlay),
+app/
+  layout.jsx               root layout + metadata
+  page.jsx                 client root: state, streaming orchestration
+  globals.css              styles
+  api-client.js            reads the NDJSON result stream
+  severity.js              severity presentation helpers (accessible)
+  components/              Uploader, Controls, ImageViewer (overlay),
                            ReportPanel, ResultsView, PrivacyNote
-server/
-  index.js                 Express: /api/config, /api/analyze (streaming), static SPA
+  api/
+    config/route.js        GET public runtime config (never leaks the key)
+    analyze/route.js       POST streaming NDJSON analysis (nodejs runtime)
+lib/                       framework-agnostic server logic
   rasterize.js             sharp (raster + SVG) / poppler (PDF) → flat PNG pages
   prompt.js                detection prompt + strictness injection
   claude.js                Anthropic messages endpoint (vision), typed errors
   analyze.js               call → parse → validate, retry once, never crash a batch
-  schema.js                parse/normalize model output to the contract (+ unit tests)
+  schema.js                parse/normalize model output to the contract
+  schema.test.js           unit tests for the parser/normalizer
   demo.js                  deterministic canned results for DEMO_MODE
-shared/brand.js            single source of truth for the public name
-references/                taxonomy, detection prompt, and output schema (the rubric)
+  config.js                env-driven config
+  brand.js                 single source of truth for the public name
+references/                taxonomy, detection prompt, output schema (the rubric)
 docs/PRD.md                full product spec
 docs/SKILL.md              the ABCD Claude skill (usable without building the app)
 ```
 
-The `/api/analyze` endpoint streams newline-delimited JSON — one result object
+The `POST /api/analyze` route streams newline-delimited JSON — one result object
 per image as it completes — so batch results appear live instead of blocking on
 the whole set. Each result conforms to the schema in
 [`references/output-schema.md`](references/output-schema.md). A single malformed
@@ -171,7 +180,7 @@ continues.
 
 ```bash
 npm test          # unit tests for the response parser/normalizer
-npm run build     # type-free production build of the frontend
+npm run build     # production build
 ```
 
 ## Roadmap

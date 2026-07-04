@@ -1,31 +1,24 @@
 {
-  "name": "fresh-eyes",
+  "name": "abcd",
   "version": "1.0.0",
-  "description": "Fresh Eyes — screens design assets for accidental phallic, vulvar, or breast-like imagery before they ship. Codename: ABCD.",
+  "description": "ABCD — screens design assets for accidental phallic, vulvar, or breast-like imagery before they ship.",
   "type": "module",
   "license": "MIT",
+  "private": true,
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "dev": "concurrently -k -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "node --watch server/index.js",
-    "dev:web": "vite",
-    "build": "vite build",
-    "start": "NODE_ENV=production node server/index.js",
-    "test": "node --test server/*.test.js"
+    "dev": "next dev -p 8787",
+    "build": "next build",
+    "start": "next start -p 8787",
+    "lint": "next lint",
+    "test": "node --test lib/*.test.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "multer": "^2.0.1",
-    "sharp": "^0.33.5"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.2",
+    "next": "^15.5.20",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "vite": "^5.4.11"
+    "sharp": "^0.33.5"
   }
 }
