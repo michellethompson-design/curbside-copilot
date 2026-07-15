@@ -86,6 +86,22 @@ function et(dateISO: string, hour: number, minute = 0): Date {
 async function main() {
   console.log("Seeding…");
 
+  // Wipe in FK order so demo:reset restores pristine state in-place. The seed
+  // uses the raw Prisma client deliberately: the append-only ledger guard in
+  // src/lib/db.ts protects application paths; a full demo reset is the one
+  // sanctioned teardown, and it truncates rather than deleting the database
+  // file so a running dev server picks up the fresh state immediately.
+  await prisma.creditRecord.deleteMany();
+  await prisma.attendance.deleteMany();
+  await prisma.agendaItem.deleteMany();
+  await prisma.sessionCredit.deleteMany();
+  await prisma.role.deleteMany();
+  await prisma.session.deleteMany();
+  await prisma.event.deleteMany();
+  await prisma.creditType.deleteMany();
+  await prisma.person.deleteMany();
+  await prisma.organization.deleteMany();
+
   const org = await prisma.organization.create({
     data: { name: "Keystone Valley School District" },
   });

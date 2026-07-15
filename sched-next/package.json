@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "demo:reset": "node -e \"require('fs').rmSync('prisma/dev.db',{force:true})\" && prisma db push --skip-generate && tsx prisma/seed.ts",
+    "demo:reset": "prisma db push --skip-generate && tsx prisma/seed.ts",
     "mcp": "tsx mcp/server.ts"
   },
   "prisma": {
