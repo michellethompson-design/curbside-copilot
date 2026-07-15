@@ -9,10 +9,28 @@ export const dynamic = "force-dynamic";
 export default async function MyAgendaPage() {
   const user = await currentUser();
   if (!user) return null;
-  const items = await db.agendaItem.findMany({
-    where: { personId: user.id },
-    include: { session: { include: { event: true } } },
-  });
+  const [items, credits] = await Promise.all([
+    db.agendaItem.findMany({
+      where: { personId: user.id },
+      include: { session: { include: { event: true } } },
+    }),
+    db.creditRecord.findMany({
+      where: { personId: user.id },
+      include: { event: { select: { id: true, name: true, endsAt: true } } },
+    }),
+  ]);
+
+  // Self-serve certificates: any event where this person's net credit is
+  // positive. Lost the PDF? Come back here, any time, forever.
+  const certByEvent = new Map<string, { name: string; endsAt: Date; units: number }>();
+  for (const r of credits) {
+    const e = certByEvent.get(r.event.id) ?? { name: r.event.name, endsAt: r.event.endsAt, units: 0 };
+    e.units = Math.round((e.units + r.units) * 10000) / 10000;
+    certByEvent.set(r.event.id, e);
+  }
+  const certificates = [...certByEvent.entries()]
+    .filter(([, e]) => e.units > 0)
+    .sort(([, a], [, b]) => b.endsAt.getTime() - a.endsAt.getTime());
   const sorted = items
     .map((i) => i.session)
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
@@ -65,6 +83,23 @@ export default async function MyAgendaPage() {
           Nothing here yet. Open an <Link href="/">event schedule</Link> and add sessions.
         </p>
       )}
+
+      <section aria-label="My certificates" style={{ marginTop: 32 }}>
+        <h2 style={{ marginBottom: 8 }}>My certificates</h2>
+        {certificates.length === 0 ? (
+          <p style={{ color: "var(--slate)" }}>
+            Certificates appear here after you attend credit-bearing sessions.
+          </p>
+        ) : (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {certificates.map(([eventId, e]) => (
+              <Link key={eventId} className="btn" href={`/certificates/${user.id}/${eventId}`}>
+                {e.name} — download certificate
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }
