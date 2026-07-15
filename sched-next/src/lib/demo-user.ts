@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { db } from "@/lib/db";
+import { db } from "./db";
 
 // No auth today (ONEDAY.md cut): a cookie names the impersonated seed user.
 // The switcher in the top bar is the only writer.

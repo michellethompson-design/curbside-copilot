@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { db } from "./db";
 
 // One query shape shared by the schedule page, the schedule API route, and
 // (through the route) the MCP get_schedule tool. The API is the contract; the
