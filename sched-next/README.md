@@ -31,6 +31,26 @@ npx tsx scripts/verify-mcp.ts      # MCP over stdio answers the missing-credits 
 
 `verify-ledger.ts` writes to the database; run `npm run demo:reset` after.
 
+## Legacy Sched bridge
+
+Pull a real event from any legacy `*.sched.com` site into the credit core:
+
+```bash
+# Public ICS export — no credentials, sessions only:
+npx tsx scripts/import-sched.ts --ics https://SUBDOMAIN.sched.com/all.ics --credit "Act 48"
+
+# Event API key — sessions and people:
+npx tsx scripts/import-sched.ts --api SUBDOMAIN --key SCHED_API_KEY --credit "Act 48"
+```
+
+Imports are idempotent (re-running updates in place; nothing duplicates) and
+attendance is deliberately not imported: check-in is the credit-bearing act
+and happens here, where the ledger vouches for it. Legacy Sched keeps the
+schedule; this side becomes the system of record. A Sched-format fixture and
+worked example live in `fixtures/sched-sample.ics`. API mode is written to
+Sched's documented per-event export endpoints; verify field names once
+against a real key (this sandbox can't reach external hosts).
+
 ## MCP server
 
 `npm run mcp` starts a stdio MCP server wrapping the REST API — five read-only

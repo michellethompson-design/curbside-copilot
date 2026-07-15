@@ -57,6 +57,9 @@ model Event {
   org           Organization   @relation(fields: [orgId], references: [id])
   name          String
   venue         String
+  // Legacy-Sched bridge: the source subdomain (e.g. "iowafblapbl2018") when
+  // this event was imported. Imports are idempotent per externalId.
+  externalId    String?
   // DRAFT | PUBLISHED | ARCHIVED
   status        String         @default("PUBLISHED")
   startsAt      DateTime
@@ -82,10 +85,14 @@ model Session {
   capacity    Int?
   startsAt    DateTime
   endsAt      DateTime
+  // Legacy-Sched bridge: stable source key (ICS UID or API event key), so
+  // re-running an import updates in place instead of duplicating.
+  externalId  String?
   credits     SessionCredit[]
   attendance  Attendance[]
   agendaItems AgendaItem[]
 
+  @@unique([eventId, externalId])
   @@index([eventId, startsAt])
 }
 
