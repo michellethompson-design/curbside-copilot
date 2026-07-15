@@ -152,7 +152,9 @@ function SessionCard({ s, canAgenda }: { s: GridSession; canAgenda: boolean }) {
               })
             }
           >
-            {inAgenda ? "✓ On my agenda" : "+ Add to agenda"}
+            <span key={String(inAgenda)} className={inAgenda ? "agenda-on" : undefined}>
+              {inAgenda ? "✓ On my agenda" : "+ Add to agenda"}
+            </span>
           </button>
         )}
       </div>

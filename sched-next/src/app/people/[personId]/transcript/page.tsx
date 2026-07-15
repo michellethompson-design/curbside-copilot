@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getPersonTranscript } from "@/lib/transcript";
 import { fmtDayShort, fmtUnits } from "@/lib/format";
 import { PrintButton } from "@/components/PrintButton";
+import { Seal } from "@/components/Seal";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export default async function TranscriptPage({
 
       <div className="doc-sheet">
       <header className="doc-head">
+        <Seal variant="ink" size={92} />
         <div className="doc-org">{transcript.person.org}</div>
         <h1>Professional Development Transcript</h1>
         <dl className="doc-meta">

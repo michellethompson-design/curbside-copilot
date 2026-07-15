@@ -366,6 +366,157 @@ input[type="text"]:hover, input[type="search"]:hover, select:hover { border-colo
 .cert-sig { border-top: 1px solid var(--ink); padding-top: 7px; font-weight: 600; }
 .cert-sig-label { font-family: var(--sans); font-size: 11px; color: var(--slate); margin-top: 2px; }
 
+/* ---- motion & delight -------------------------------------------------
+   Micro-interactions live here: pages settle, stamps thunk, counters pop,
+   buttons depress. Every animation is disabled under prefers-reduced-motion
+   (design rule 9 — accessibility is a hard requirement, not a coat of paint). */
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes stamp-in {
+  0% { opacity: 0; transform: scale(2.1) rotate(-14deg); }
+  55% { opacity: 1; transform: scale(0.94) rotate(-4deg); }
+  75% { transform: scale(1.04) rotate(-6deg); }
+  100% { transform: scale(1) rotate(-5deg); }
+}
+@keyframes pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.35); color: var(--ledger); }
+  100% { transform: scale(1); }
+}
+@keyframes glint {
+  0%, 78% { transform: translateX(-130%) rotate(18deg); }
+  92% { transform: translateX(160%) rotate(18deg); }
+  100% { transform: translateX(160%) rotate(18deg); }
+}
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(-2.4deg); }
+}
+
+main.page { animation: rise-in 320ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.doc-sheet { animation: rise-in 420ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+
+/* tactile buttons: they depress like real keys */
+button:not(:disabled):active, .btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 0 1px rgba(16, 35, 59, 0.12);
+}
+
+/* nav underline slides in */
+.topbar nav a { position: relative; }
+.topbar nav a::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: #6fd3a6;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 180ms ease;
+}
+.topbar nav a:hover::after { transform: scaleX(1); }
+
+/* session cards lift toward the cursor */
+@media (hover: hover) {
+  .session-card:hover { transform: translateY(-2px); }
+}
+
+/* the rubber stamp — check-in's celebration moment */
+.stamp {
+  display: inline-block;
+  font-family: var(--serif);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ledger-deep);
+  border: 2px solid var(--ledger-deep);
+  border-radius: 4px;
+  padding: 2px 9px;
+  transform: rotate(-5deg);
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.55) 0%, transparent 45%),
+    var(--ledger-soft);
+  box-shadow: inset 0 0 6px rgba(10, 97, 65, 0.22);
+  mix-blend-mode: multiply;
+}
+.stamp-in { animation: stamp-in 340ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+
+.pop { display: inline-block; animation: pop 360ms cubic-bezier(0.2, 0.9, 0.4, 1.4) both; }
+
+/* agenda toggle celebrates quietly */
+.agenda-on { animation: pop 320ms cubic-bezier(0.2, 0.9, 0.4, 1.4) both; color: var(--ledger-deep); }
+
+/* empty states: illustrated warmth */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--slate);
+  padding: 34px 20px 38px;
+  background: var(--card);
+  border: 1.5px dashed var(--rule);
+  border-radius: 12px;
+}
+.empty-state svg { animation: rise-in 500ms 80ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.empty-state p { margin: 0; max-width: 42ch; }
+
+/* ---- skeuomorphic paper ---- */
+.doc-sheet, .cert-frame {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.32 0 0 0 0 0.25 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.cert-frame { position: relative; }
+
+.seal { display: block; }
+.seal-ink {
+  color: var(--ledger-deep);
+  opacity: 0.82;
+  transform: rotate(-6deg);
+  mix-blend-mode: multiply;
+}
+.doc-head { position: relative; }
+.doc-head .seal-ink {
+  position: absolute;
+  right: 6px;
+  top: -4px;
+  animation: stamp-in 460ms 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both, wiggle 6s 1s ease-in-out infinite;
+}
+.cert-seal {
+  position: relative;
+  width: 108px;
+  margin: 26px auto 0;
+  filter: drop-shadow(0 2px 3px rgba(120, 90, 20, 0.35));
+  overflow: hidden;
+  border-radius: 50%;
+}
+.cert-seal::after {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 252, 240, 0.75), transparent);
+  animation: glint 5.5s 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .session-card:hover { transform: none; }
+}
+
 /* ---- print: transcripts and certificates read as documents ---- */
 @media print {
   .topbar, .filters, .no-print, button { display: none !important; }

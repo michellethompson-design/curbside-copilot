@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { fmtDateRange, fmtDayShort, fmtUnits } from "@/lib/format";
 import { PrintButton } from "@/components/PrintButton";
+import { Seal } from "@/components/Seal";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,9 @@ export default async function CertificatePage({
               <span className="num">{fmtUnits(t.units)}</span> {t.name}
             </div>
           ))}
+        </div>
+        <div className="cert-seal">
+          <Seal variant="foil" size={108} />
         </div>
         <div className="cert-footer">
           <div>

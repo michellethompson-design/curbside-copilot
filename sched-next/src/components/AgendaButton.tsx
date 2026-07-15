@@ -17,7 +17,9 @@ export function AgendaButton({ sessionId, initial }: { sessionId: string; initia
         })
       }
     >
-      {inAgenda ? "✓ On my agenda — remove" : "+ Add to my agenda"}
+      <span key={String(inAgenda)} className={inAgenda ? "agenda-on" : undefined}>
+        {inAgenda ? "✓ On my agenda — remove" : "+ Add to my agenda"}
+      </span>
     </button>
   );
 }

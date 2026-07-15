@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/demo-user";
 import { fmtDay, fmtTime } from "@/lib/format";
 import { trackColor } from "@/lib/track-color";
+import { ClipboardIllustration, RibbonIllustration } from "@/components/illustrations";
 
 export const dynamic = "force-dynamic";
 
@@ -79,17 +80,27 @@ export default async function MyAgendaPage() {
         </section>
       ))}
       {sorted.length === 0 && (
-        <p style={{ color: "var(--slate)" }}>
-          Nothing here yet. Open an <Link href="/">event schedule</Link> and add sessions.
-        </p>
+        <div className="empty-state">
+          <ClipboardIllustration />
+          <h3 style={{ color: "var(--ink)" }}>Your agenda is a blank sign-in sheet</h3>
+          <p>
+            Open an <Link href="/">event schedule</Link> and add the sessions you plan to attend —
+            attending them is what earns the credit.
+          </p>
+        </div>
       )}
 
       <section aria-label="My certificates" style={{ marginTop: 32 }}>
         <h2 style={{ marginBottom: 8 }}>My certificates</h2>
         {certificates.length === 0 ? (
-          <p style={{ color: "var(--slate)" }}>
-            Certificates appear here after you attend credit-bearing sessions.
-          </p>
+          <div className="empty-state">
+            <RibbonIllustration />
+            <h3 style={{ color: "var(--ink)" }}>No certificates yet</h3>
+            <p>
+              They appear here after you attend credit-bearing sessions — and stay here forever, so a
+              lost PDF is never an email to the PD office again.
+            </p>
+          </div>
         ) : (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {certificates.map(([eventId, e]) => (

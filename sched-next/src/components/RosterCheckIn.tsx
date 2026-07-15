@@ -27,6 +27,9 @@ export function RosterCheckIn({
   const [undoFor, setUndoFor] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [pending, startTransition] = useTransition();
+  // Check-ins made in this sitting get the stamp animation; ones loaded from
+  // the server sit still. The stamp is the celebration, not the state.
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
 
   const checkedCount = people.filter((p) => p.checkedIn).length;
   const visible = useMemo(() => {
@@ -45,8 +48,12 @@ export function RosterCheckIn({
     setErrors((e) => ({ ...e, [personId]: "" }));
     startTransition(async () => {
       const result = await checkInAction(sessionId, personId);
-      if (result.ok) setChecked(personId, true);
-      else setErrors((e) => ({ ...e, [personId]: result.error }));
+      if (result.ok) {
+        setChecked(personId, true);
+        setFresh((f) => new Set(f).add(personId));
+      } else {
+        setErrors((e) => ({ ...e, [personId]: result.error }));
+      }
     });
   }
 
@@ -77,7 +84,7 @@ export function RosterCheckIn({
           style={{ minWidth: 260 }}
         />
         <span aria-live="polite" style={{ fontSize: 13, color: "var(--slate)" }}>
-          <strong className="num">{checkedCount.toLocaleString()}</strong> of{" "}
+          <strong key={checkedCount} className="num pop">{checkedCount.toLocaleString()}</strong> of{" "}
           <span className="num">{people.length.toLocaleString()}</span> checked in · each check-in writes{" "}
           <span className="badge credit num">{creditSummary}</span> to the ledger
         </span>
@@ -119,8 +126,8 @@ export function RosterCheckIn({
                     </button>
                   </span>
                 ) : (
-                  <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span className="badge credit">✓ Checked in</span>
+                  <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span className={fresh.has(p.id) ? "stamp stamp-in" : "stamp"}>✓ Recorded</span>
                     <button className="quiet" style={{ fontSize: 12.5 }} onClick={() => setUndoFor(p.id)}>
                       Undo…
                     </button>
