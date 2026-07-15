@@ -52,6 +52,7 @@ export default async function TranscriptPage({
         <PrintButton />
       </form>
 
+      <div className="doc-sheet">
       <header className="doc-head">
         <div className="doc-org">{transcript.person.org}</div>
         <h1>Professional Development Transcript</h1>
@@ -132,6 +133,7 @@ export default async function TranscriptPage({
         {" "}— every figure above traces to attendance records and dated correction entries. Nothing on
         this transcript can be silently edited.
       </footer>
+      </div>
     </main>
   );
 }
