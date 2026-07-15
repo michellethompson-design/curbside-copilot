@@ -1,0 +1,178 @@
+// Stage 0 schema (SPEC.md). SQLite for the one-day build, but every type and
+// relation here is Postgres-compatible: no SQLite-only features, string-backed
+// enums (documented per field), cuid ids, UTC DateTimes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id          String        @id @default(cuid())
+  name        String
+  people      Person[]
+  events      Event[]
+  creditTypes CreditType[]
+  createdAt   DateTime      @default(now())
+}
+
+model Person {
+  id            String         @id @default(cuid())
+  orgId         String
+  org           Organization   @relation(fields: [orgId], references: [id])
+  name          String
+  email         String         @unique
+  // Educator license number, e.g. a PA PPID for Act 48 reporting.
+  licenseId     String?
+  roles         Role[]
+  attendance    Attendance[]
+  creditRecords CreditRecord[]
+  agendaItems   AgendaItem[]
+  createdAt     DateTime       @default(now())
+
+  @@index([orgId])
+}
+
+// Scoped role grants: ORG_OWNER | ORG_ADMIN | EVENT_ADMIN | ATTENDEE.
+// EVENT_ADMIN carries an eventId scope; the org-level roles do not.
+model Role {
+  id       String  @id @default(cuid())
+  personId String
+  person   Person  @relation(fields: [personId], references: [id])
+  level    String
+  eventId  String?
+  event    Event?  @relation(fields: [eventId], references: [id])
+
+  @@unique([personId, level, eventId])
+  @@index([personId])
+}
+
+model Event {
+  id            String         @id @default(cuid())
+  orgId         String
+  org           Organization   @relation(fields: [orgId], references: [id])
+  name          String
+  venue         String
+  // DRAFT | PUBLISHED | ARCHIVED
+  status        String         @default("PUBLISHED")
+  startsAt      DateTime
+  endsAt        DateTime
+  sessions      Session[]
+  creditRecords CreditRecord[]
+  eventAdmins   Role[]
+
+  @@index([orgId])
+}
+
+model Session {
+  id          String          @id @default(cuid())
+  eventId     String
+  event       Event           @relation(fields: [eventId], references: [id])
+  title       String
+  description String          @default("")
+  // Speaker display names, comma-separated. A Speaker join table is a full-build
+  // concern; today nothing hangs on speaker identity.
+  speakers    String          @default("")
+  track       String          @default("General")
+  room        String
+  capacity    Int?
+  startsAt    DateTime
+  endsAt      DateTime
+  credits     SessionCredit[]
+  attendance  Attendance[]
+  agendaItems AgendaItem[]
+
+  @@index([eventId, startsAt])
+}
+
+// Org-defined credit currency: Act 48 hours, CEUs, contact hours...
+// roundingMode: FLOOR | NEAREST | CEILING, applied at incrementMinutes
+// granularity when session minutes convert to credit units.
+model CreditType {
+  id               String          @id @default(cuid())
+  orgId            String
+  org              Organization    @relation(fields: [orgId], references: [id])
+  name             String
+  // Display unit, e.g. "hours", "CEUs"
+  unit             String
+  // Minutes of instruction per 1.0 credit unit (60 for clock hours, 600 for CEUs)
+  minutesPerUnit   Int             @default(60)
+  incrementMinutes Int             @default(15)
+  roundingMode     String          @default("NEAREST")
+  sessionCredits   SessionCredit[]
+  creditRecords    CreditRecord[]
+
+  @@index([orgId])
+}
+
+// A session offers credit of a given type. Units are derived from the session's
+// scheduled minutes through the CreditType rounding policy unless fixedUnits
+// pins them explicitly (e.g. a keynote granted a flat 1.0).
+model SessionCredit {
+  id           String     @id @default(cuid())
+  sessionId    String
+  session      Session    @relation(fields: [sessionId], references: [id])
+  creditTypeId String
+  creditType   CreditType @relation(fields: [creditTypeId], references: [id])
+  fixedUnits   Float?
+
+  @@unique([sessionId, creditTypeId])
+}
+
+model Attendance {
+  id           String   @id @default(cuid())
+  sessionId    String
+  session      Session  @relation(fields: [sessionId], references: [id])
+  personId     String
+  person       Person   @relation(fields: [personId], references: [id])
+  // Verification method: ROSTER | SELF | QR
+  method       String
+  checkedInAt  DateTime @default(now())
+  // Who performed the check-in (the actor of record for retro check-ins).
+  recordedById String?
+
+  @@unique([sessionId, personId])
+  @@index([personId])
+}
+
+// The ledger. Append-only: no updates, no deletes, ever — enforced in
+// src/lib/db.ts on top of this schema. Corrections are offsetting entries
+// (kind ADJUSTMENT, negative units, reason required, offsets pointing at the
+// entry being corrected). Transcripts and compliance reports are derived views.
+model CreditRecord {
+  id           String        @id @default(cuid())
+  personId     String
+  person       Person        @relation(fields: [personId], references: [id])
+  eventId      String
+  event        Event         @relation(fields: [eventId], references: [id])
+  sessionId    String?
+  creditTypeId String
+  creditType   CreditType    @relation(fields: [creditTypeId], references: [id])
+  units        Float
+  // AWARD | ADJUSTMENT
+  kind         String        @default("AWARD")
+  reason       String?
+  offsetsId    String?
+  offsets      CreditRecord? @relation("Correction", fields: [offsetsId], references: [id])
+  offsetBy     CreditRecord[] @relation("Correction")
+  createdAt    DateTime      @default(now())
+
+  @@index([personId, creditTypeId])
+  @@index([eventId])
+}
+
+// Attendee personal agenda ("my schedule").
+model AgendaItem {
+  id        String   @id @default(cuid())
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id])
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([personId, sessionId])
+}
