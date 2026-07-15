@@ -21,7 +21,9 @@ export function fmtDateRange(a: Date, b: Date): string {
 }
 
 export function fmtUnits(n: number): string {
-  // Credit figures always show two decimals: 1.50, 0.75. Ledger discipline.
+  // Credit figures show two decimals (1.50, 0.75) — but never lie: a 0.025 CEU
+  // floor award must not display as a rounded-up-looking 0.03.
+  if (Math.abs(Number(n.toFixed(2)) - n) > 1e-9) return n.toFixed(3);
   return n.toFixed(2);
 }
 

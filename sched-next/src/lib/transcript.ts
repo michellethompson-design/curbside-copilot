@@ -51,7 +51,10 @@ export async function getPersonTranscript(personId: string, filters: TranscriptF
         recordedAt: r.createdAt,
       };
     })
-    .filter((e) => (filters.year ? e.year === filters.year : true));
+    .filter((e) => (filters.year ? e.year === filters.year : true))
+    // Document order: when the credit was earned, then when it was recorded —
+    // so a correction sits directly under the entry it offsets.
+    .sort((a, b) => a.earnedAt.getTime() - b.earnedAt.getTime() || a.recordedAt.getTime() - b.recordedAt.getTime());
 
   // Totals per credit type net of adjustments — the number the state sees.
   const totals = new Map<string, { creditType: string; unit: string; units: number }>();
