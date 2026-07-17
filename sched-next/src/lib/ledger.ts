@@ -19,9 +19,35 @@ export async function checkIn(
 ): Promise<CheckInResult> {
   const session = await db.session.findUnique({
     where: { id: sessionId },
-    include: { credits: { include: { creditType: true } } },
+    include: {
+      credits: { include: { creditType: { include: { authorizations: true } } } },
+    },
   });
   if (!session) return { ok: false, error: "Session not found." };
+
+  // Role-gated grant authority (P0): a credit type carrying authorizations
+  // can only be granted by an actor holding one of the required roles, scoped
+  // to this event or org-wide. No admin bypass — that is the entire point of
+  // the rule (Pasadena ISD rejected two products for enforcing it in UI only).
+  const restricted = session.credits.filter((c) => c.creditType.authorizations.length > 0);
+  if (restricted.length > 0) {
+    const actorRoles = await db.role.findMany({ where: { personId: recordedById } });
+    for (const c of restricted) {
+      const required = c.creditType.authorizations.map((a) => a.requiredRole);
+      const authorized = actorRoles.some(
+        (r) => required.includes(r.level) && (r.eventId === null || r.eventId === session.eventId),
+      );
+      if (!authorized) {
+        return {
+          ok: false,
+          error:
+            `${c.creditType.name} can only be granted by ${required
+              .map((x) => x.replace(/_/g, " ").toLowerCase())
+              .join(" or ")} staff. Ask an authorized grantor to run this session's check-in.`,
+        };
+      }
+    }
+  }
 
   const existing = await db.attendance.findUnique({
     where: { sessionId_personId: { sessionId, personId } },

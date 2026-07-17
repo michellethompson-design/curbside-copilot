@@ -96,9 +96,14 @@ model Session {
   @@index([eventId, startsAt])
 }
 
-// Org-defined credit currency: Act 48 hours, CEUs, contact hours...
+// Credit currency: Act 48 hours, CEUs, contact hours...
 // roundingMode: FLOOR | NEAREST | CEILING, applied at incrementMinutes
 // granularity when session minutes convert to credit units.
+//
+// P0 curation model: status tracks where an entry sits in the catalog —
+// CANDIDATE (landed by a fetcher, awaiting admin review), DISTRICT_CANONICAL
+// (hand-defined by the org), STATE_CANONICAL (accepted from a state source).
+// Provenance fields record where a state-sourced entry came from and when.
 model CreditType {
   id               String          @id @default(cuid())
   orgId            String
@@ -110,10 +115,35 @@ model CreditType {
   minutesPerUnit   Int             @default(60)
   incrementMinutes Int             @default(15)
   roundingMode     String          @default("NEAREST")
+  // CANDIDATE | DISTRICT_CANONICAL | STATE_CANONICAL
+  status           String          @default("DISTRICT_CANONICAL")
+  // Jurisdiction code, e.g. "PA", "TX"; null for purely district-defined.
+  jurisdiction     String?
+  sourceUrl        String?
+  sourceFetchedAt  DateTime?
+  // Content hash of the source at fetch time; a changed hash re-opens review.
+  sourceRevision   String?
+  // HIGH | MEDIUM | LOW — how confidently the fetcher parsed the source.
+  sourceConfidence String?
   sessionCredits   SessionCredit[]
   creditRecords    CreditRecord[]
+  authorizations   CreditTypeAuthorization[]
 
+  @@unique([orgId, jurisdiction, name])
   @@index([orgId])
+}
+
+// Role-gated grant authority (the Pasadena ISD deal-breaker): a credit type
+// carrying authorizations can only be granted by an actor holding one of the
+// required roles. Enforced in the check-in write path, not in the UI.
+model CreditTypeAuthorization {
+  id           String     @id @default(cuid())
+  creditTypeId String
+  creditType   CreditType @relation(fields: [creditTypeId], references: [id])
+  // e.g. PIL_AUTHORIZED, GT_AUTHORIZED, READING_ACADEMIES_AUTHORIZED
+  requiredRole String
+
+  @@unique([creditTypeId, requiredRole])
 }
 
 // A session offers credit of a given type. Units are derived from the session's

@@ -98,6 +98,7 @@ async function main() {
   await prisma.role.deleteMany();
   await prisma.session.deleteMany();
   await prisma.event.deleteMany();
+  await prisma.creditTypeAuthorization.deleteMany();
   await prisma.creditType.deleteMany();
   await prisma.person.deleteMany();
   await prisma.organization.deleteMany();
@@ -111,6 +112,10 @@ async function main() {
     data: {
       orgId: org.id, name: "Act 48 Hours", unit: "hours",
       minutesPerUnit: 60, incrementMinutes: 15, roundingMode: "NEAREST",
+      status: "STATE_CANONICAL", jurisdiction: "PA",
+      sourceUrl: "https://www.education.pa.gov/Educators/ContinuedEd/Act48",
+      sourceFetchedAt: new Date("2026-06-02T14:00:00Z"),
+      sourceRevision: "manual-entry", sourceConfidence: "HIGH",
     },
   });
   const ceu = await prisma.creditType.create({
@@ -123,6 +128,20 @@ async function main() {
     data: {
       orgId: org.id, name: "Flex Contact Hours", unit: "contact hours",
       minutesPerUnit: 60, incrementMinutes: 30, roundingMode: "CEILING",
+    },
+  });
+  // Role-gated example: Act 45 PIL hours (administrator PD) can only be
+  // granted by PIL-authorized staff. Ruth carries the authorization; Dana
+  // deliberately does not — the demo shows the block and the unlock.
+  const act45 = await prisma.creditType.create({
+    data: {
+      orgId: org.id, name: "Act 45 PIL Hours", unit: "hours",
+      minutesPerUnit: 60, incrementMinutes: 30, roundingMode: "FLOOR",
+      status: "STATE_CANONICAL", jurisdiction: "PA",
+      sourceUrl: "https://www.education.pa.gov/Educators/ContinuedEd/Act45",
+      sourceFetchedAt: new Date("2026-06-02T14:00:00Z"),
+      sourceRevision: "manual-entry", sourceConfidence: "HIGH",
+      authorizations: { create: [{ requiredRole: "PIL_AUTHORIZED" }] },
     },
   });
   const act48Policy: RoundingPolicy = { minutesPerUnit: 60, incrementMinutes: 15, mode: "NEAREST" };
@@ -185,6 +204,7 @@ async function main() {
   await prisma.role.createMany({
     data: [
       { personId: ruth, level: "ORG_OWNER" },
+      { personId: ruth, level: "PIL_AUTHORIZED" },
       { personId: dana, level: "ORG_ADMIN" },
       { personId: dana, level: "EVENT_ADMIN", eventId: inservice.id },
       { personId: priya, level: "DOOR_STAFF", eventId: inservice.id },
@@ -299,6 +319,14 @@ async function main() {
     if (mins >= 90 && s.eventId !== stress.id) {
       sessionCredits.push({ sessionId: s.id, creditTypeId: ceu.id, fixedUnits: null });
     }
+  }
+  // Two Day-2 leadership-strand sessions additionally carry the role-gated
+  // Act 45 PIL credit.
+  const act45Sessions = allSessions
+    .filter((s) => s.eventId === inservice.id && s.track === "SEL & School Climate" && s.startsAt.getUTCDate() === 18)
+    .slice(0, 2);
+  for (const s of act45Sessions) {
+    sessionCredits.push({ sessionId: s.id, creditTypeId: act45.id, fixedUnits: null });
   }
   await prisma.sessionCredit.createMany({ data: sessionCredits });
 

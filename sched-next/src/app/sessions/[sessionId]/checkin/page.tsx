@@ -16,7 +16,7 @@ export default async function CheckInPage({ params }: { params: Promise<{ sessio
     where: { id: sessionId },
     include: {
       event: true,
-      credits: { include: { creditType: true } },
+      credits: { include: { creditType: { include: { authorizations: true } } } },
       attendance: { select: { personId: true } },
     },
   });
@@ -43,9 +43,10 @@ export default async function CheckInPage({ params }: { params: Promise<{ sessio
           incrementMinutes: t.incrementMinutes,
           mode: t.roundingMode as RoundingMode,
         });
-      return `${fmtUnits(units)} ${t.name}`;
+      return `${fmtUnits(units)} ${t.name}${c.creditType.authorizations.length > 0 ? " 🔒" : ""}`;
     })
     .join(" + ");
+  const restricted = session.credits.filter((c) => c.creditType.authorizations.length > 0);
 
   return (
     <main className="page wide">
@@ -59,6 +60,16 @@ export default async function CheckInPage({ params }: { params: Promise<{ sessio
           Checking someone in writes attendance and appends the credit award to the ledger in the same
           step. Corrections are offsetting entries with a reason — the ledger itself is never edited.
         </p>
+        {restricted.length > 0 && (
+          <p className="sub" style={{ color: "var(--amber)", fontWeight: 600 }}>
+            🔒 This session carries{" "}
+            {restricted.map((c) => c.creditType.name).join(" and ")} — grant-restricted to{" "}
+            {[...new Set(restricted.flatMap((c) => c.creditType.authorizations.map((a) => a.requiredRole)))]
+              .map((r) => r.replace(/_/g, " ").toLowerCase())
+              .join(" or ")}{" "}
+            staff. Check-in by anyone else is blocked in the write path.
+          </p>
+        )}
       </div>
       <RosterCheckIn
         sessionId={session.id}

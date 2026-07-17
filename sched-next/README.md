@@ -31,6 +31,20 @@ npx tsx scripts/verify-mcp.ts      # MCP over stdio answers the missing-credits 
 
 `verify-ledger.ts` writes to the database; run `npm run demo:reset` after.
 
+## State credit-type catalog (P0 slice)
+
+Credit types carry curation status (candidate / district-defined / state
+canonical), jurisdiction, and source provenance. Grant-restricted types
+(e.g. Act 45 PIL Hours → `PIL_AUTHORIZED`) are enforced in the check-in
+write path — no admin bypass. The state fetcher lands candidates for review
+in settings; nothing goes live until accepted:
+
+```bash
+npx tsx scripts/fetch-state-credit-types.ts --jurisdiction TX --file fixtures/tea-cpe-sample.html
+npx tsx scripts/fetch-state-credit-types.ts --jurisdiction TX --url https://tea.texas.gov/…   # live, run locally
+npx tsx scripts/verify-p0.ts   # exit test: role gate + fetcher lifecycle
+```
+
 ## Legacy Sched bridge
 
 Pull a real event from any legacy `*.sched.com` site into the credit core:

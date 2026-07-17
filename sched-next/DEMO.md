@@ -68,6 +68,18 @@ it's fewer systems, not another one."*
 plain language with a worked table, backed by unit tests. Show the tests are
 green if anyone leans in: `npm test`.
 
+*The catalog beat (optional, 90 seconds — the P0 answer).* Before the demo,
+run `npx tsx scripts/fetch-state-credit-types.ts --jurisdiction TX --file
+fixtures/tea-cpe-sample.html`. Settings now opens on a review queue: five
+Texas credit types a fetcher pulled from a state source, each with its
+revision hash and parse confidence, two of them grant-restricted. Accept one
+on camera — it becomes state canonical. Then open the Advisory session's
+check-in as Dana and tap someone: blocked, by name, because Act 45 PIL Hours
+demand a PIL-authorized grantor — and Dana isn't one. Switch to Ruth; it
+works. One sentence lands it: *"Grant authority is enforced where the record
+is written, not where the buttons are drawn — that's the requirement Pasadena
+rejected two products over."*
+
 ## Scene 4 — The attendee's thirty seconds (1 min)
 
 Switch to **Marcus Bell**. My agenda, his sessions, and **his certificate —
