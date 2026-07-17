@@ -1,7 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { checkInAction, undoCheckInAction } from "@/app/sessions/[sessionId]/checkin/actions";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  bulkCheckInAction,
+  checkInAction,
+  undoCheckInAction,
+} from "@/app/sessions/[sessionId]/checkin/actions";
 
 export type RosterPerson = {
   id: string;
@@ -10,26 +14,33 @@ export type RosterPerson = {
   checkedIn: boolean;
 };
 
-// Roster mode: built for a gym with bad wifi. One list, one search box, one
-// click per person; every action is a plain button, fully keyboard-operable.
+// Roster mode: built for a gym with bad wifi and as many doors as Dana can
+// deputize. Multiple devices work the same roster at once — the server is the
+// single source of truth (double taps land exactly one award), and a light
+// poll converges every screen within a few seconds. Bulk check-in is a loop
+// over the same single-person path: fewer taps, identical records.
 export function RosterCheckIn({
   sessionId,
   roster,
   creditSummary,
+  canCorrect,
 }: {
   sessionId: string;
   roster: RosterPerson[];
   creditSummary: string;
+  canCorrect: boolean;
 }) {
   const [people, setPeople] = useState(roster);
   const [q, setQ] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [undoFor, setUndoFor] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [bulkArmed, setBulkArmed] = useState(false);
+  const [bulkNote, setBulkNote] = useState("");
   const [pending, startTransition] = useTransition();
-  // Check-ins made in this sitting get the stamp animation; ones loaded from
-  // the server sit still. The stamp is the celebration, not the state.
   const [fresh, setFresh] = useState<Set<string>>(new Set());
+  const pendingRef = useRef(false);
+  pendingRef.current = pending;
 
   const checkedCount = people.filter((p) => p.checkedIn).length;
   const visible = useMemo(() => {
@@ -39,6 +50,30 @@ export function RosterCheckIn({
       : people;
     return filtered.slice(0, 60);
   }, [people, q]);
+  const visibleUnchecked = visible.filter((p) => !p.checkedIn);
+
+  // Converge with the other doors: every few seconds, adopt the server's
+  // attendance set. Skipped while a local action is in flight so an optimistic
+  // tap never flickers backwards.
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (pendingRef.current || document.hidden) return;
+      try {
+        const res = await fetch(`/api/sessions/${sessionId}/attendance`);
+        if (!res.ok) return;
+        const { personIds } = (await res.json()) as { personIds: string[] };
+        const server = new Set(personIds);
+        setPeople((ps) =>
+          ps.some((p) => p.checkedIn !== server.has(p.id))
+            ? ps.map((p) => (p.checkedIn === server.has(p.id) ? p : { ...p, checkedIn: server.has(p.id) }))
+            : ps,
+        );
+      } catch {
+        // Gym wifi. The next poll will get through.
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [sessionId]);
 
   function setChecked(personId: string, value: boolean) {
     setPeople((ps) => ps.map((p) => (p.id === personId ? { ...p, checkedIn: value } : p)));
@@ -51,9 +86,40 @@ export function RosterCheckIn({
       if (result.ok) {
         setChecked(personId, true);
         setFresh((f) => new Set(f).add(personId));
+      } else if (result.error === "Already checked in.") {
+        // Another door got there first — adopt, don't alarm.
+        setChecked(personId, true);
       } else {
         setErrors((e) => ({ ...e, [personId]: result.error }));
       }
+    });
+  }
+
+  function handleBulk() {
+    const ids = visibleUnchecked.map((p) => p.id);
+    setBulkArmed(false);
+    setBulkNote("");
+    startTransition(async () => {
+      const result = await bulkCheckInAction(sessionId, ids);
+      if ("error" in result) {
+        setBulkNote(result.error);
+        return;
+      }
+      const skippedIds = new Set(result.skipped.map((s) => s.personId));
+      setPeople((ps) => ps.map((p) => (ids.includes(p.id) && !skippedIds.has(p.id) ? { ...p, checkedIn: true } : p)));
+      setFresh((f) => {
+        const next = new Set(f);
+        for (const id of ids) if (!skippedIds.has(id)) next.add(id);
+        return next;
+      });
+      const overlap = result.skipped.filter((s) => s.error.includes("Overlaps"));
+      setBulkNote(
+        `${result.checkedIn} checked in` +
+          (result.skipped.length
+            ? `, ${result.skipped.length} skipped${overlap.length ? ` (${overlap.length} overlapping check-ins — resolve individually)` : ""}`
+            : "") +
+          ".",
+      );
     });
   }
 
@@ -83,19 +149,39 @@ export function RosterCheckIn({
           onChange={(e) => setQ(e.target.value)}
           style={{ minWidth: 260 }}
         />
+        {visibleUnchecked.length > 1 &&
+          (bulkArmed ? (
+            <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button className="ledger" disabled={pending} onClick={handleBulk}>
+                Confirm: check in {visibleUnchecked.length} people
+              </button>
+              <button className="quiet" onClick={() => setBulkArmed(false)}>
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button disabled={pending} onClick={() => setBulkArmed(true)}>
+              Check in all {visibleUnchecked.length} shown…
+            </button>
+          ))}
         <span aria-live="polite" style={{ fontSize: 13, color: "var(--slate)" }}>
           <strong key={checkedCount} className="num pop">{checkedCount.toLocaleString()}</strong> of{" "}
           <span className="num">{people.length.toLocaleString()}</span> checked in · each check-in writes{" "}
           <span className="badge credit num">{creditSummary}</span> to the ledger
         </span>
       </div>
+      {bulkNote && (
+        <p role="status" style={{ margin: "0 0 12px", fontSize: 13, color: "var(--ledger-deep)", fontWeight: 600 }}>
+          {bulkNote}
+        </p>
+      )}
 
       <table className="grid">
         <thead>
           <tr>
             <th>Name</th>
             <th>Email</th>
-            <th style={{ width: 240 }}>Check-in</th>
+            <th style={{ width: 260 }}>Check-in</th>
           </tr>
         </thead>
         <tbody>
@@ -128,9 +214,11 @@ export function RosterCheckIn({
                 ) : (
                   <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <span className={fresh.has(p.id) ? "stamp stamp-in" : "stamp"}>✓ Recorded</span>
-                    <button className="quiet" style={{ fontSize: 12.5 }} onClick={() => setUndoFor(p.id)}>
-                      Undo…
-                    </button>
+                    {canCorrect && (
+                      <button className="quiet" style={{ fontSize: 12.5 }} onClick={() => setUndoFor(p.id)}>
+                        Undo…
+                      </button>
+                    )}
                   </span>
                 )}
                 {errors[p.id] && (
@@ -152,7 +240,7 @@ export function RosterCheckIn({
       </table>
       {visible.length === 60 && (
         <p style={{ fontSize: 12.5, color: "var(--slate)" }}>
-          Showing the first 60 matches — keep typing to narrow.
+          Showing the first 60 matches — keep typing to narrow, or use “Check in all shown” per batch.
         </p>
       )}
     </div>

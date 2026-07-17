@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { currentUser, isAdmin } from "@/lib/demo-user";
+import { canCheckIn, currentUser } from "@/lib/demo-user";
 import { fmtDay, fmtTime, fmtUnits } from "@/lib/format";
 import { minutesToUnits, sessionMinutes, type RoundingMode } from "@/lib/credit-math";
 import { trackColor } from "@/lib/track-color";
@@ -107,7 +107,7 @@ export default async function SessionPage({ params }: { params: Promise<{ sessio
 
       <div style={{ display: "flex", gap: 10 }}>
         {user && <AgendaButton sessionId={session.id} initial={inAgenda} />}
-        {isAdmin(user) && (
+        {canCheckIn(user, session.eventId) && (
           <Link className="btn primary" href={`/sessions/${session.id}/checkin`}>
             Open roster check-in
           </Link>

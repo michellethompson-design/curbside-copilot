@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { currentUser, isAdmin } from "@/lib/demo-user";
+import { canCheckIn, currentUser, isAdmin } from "@/lib/demo-user";
 import { fmtDay, fmtTime, fmtUnits } from "@/lib/format";
 import { minutesToUnits, sessionMinutes, type RoundingMode } from "@/lib/credit-math";
 import { RosterCheckIn, type RosterPerson } from "@/components/RosterCheckIn";
@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 export default async function CheckInPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params;
   const user = await currentUser();
-  if (!isAdmin(user)) redirect(`/sessions/${sessionId}`);
 
   const session = await db.session.findUnique({
     where: { id: sessionId },
@@ -22,6 +21,8 @@ export default async function CheckInPage({ params }: { params: Promise<{ sessio
     },
   });
   if (!session) notFound();
+  if (!canCheckIn(user, session.eventId)) redirect(`/sessions/${sessionId}`);
+  const admin = isAdmin(user);
 
   const people = await db.person.findMany({
     where: { orgId: session.event.orgId },
@@ -63,6 +64,7 @@ export default async function CheckInPage({ params }: { params: Promise<{ sessio
         sessionId={session.id}
         roster={roster}
         creditSummary={creditSummary || "no credit"}
+        canCorrect={admin}
       />
     </main>
   );

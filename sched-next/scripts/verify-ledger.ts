@@ -6,7 +6,7 @@
  * for a pristine demo state.
  */
 import { db } from "../src/lib/db";
-import { checkIn, undoCheckIn } from "../src/lib/ledger";
+import { bulkCheckIn, checkIn, undoCheckIn } from "../src/lib/ledger";
 
 async function main() {
   const event = await db.event.findFirst({ where: { name: "August Inservice 2026" } });
@@ -26,11 +26,13 @@ async function main() {
     (s) => s.id !== target.id && s.startsAt < target.endsAt && s.endsAt > target.startsAt,
   )!;
 
-  const people = await db.person.findMany({
+  // First 20 get checked in; the rest stay clean for the race and bulk steps.
+  const allPeople = await db.person.findMany({
     where: { orgId: event.orgId, email: { contains: "@kvsd" } },
     orderBy: { email: "asc" },
-    take: 20,
+    take: 30,
   });
+  const people = allPeople.slice(0, 20);
 
   console.log(`Target session: “${target.title}” (${target.id})`);
 
@@ -85,6 +87,38 @@ async function main() {
     }
   }
   console.log("✓ ledger guard: update, delete, deleteMany all rejected at the data layer");
+
+  // 5. Two doors, same person, same instant: exactly one award lands.
+  const racer = allPeople[25];
+  const race = await Promise.all([
+    checkIn(overlapping.id, racer.id, dana.id),
+    checkIn(overlapping.id, racer.id, dana.id),
+  ]);
+  const okCount = race.filter((r) => r.ok).length;
+  const raceRows = await db.attendance.count({
+    where: { sessionId: overlapping.id, personId: racer.id },
+  });
+  if (okCount !== 1 || raceRows !== 1) {
+    throw new Error(`Race check FAILED: ${okCount} successes, ${raceRows} attendance rows`);
+  }
+  console.log(
+    `✓ concurrent taps: one landed, one answered “${race.find((r) => !r.ok && "error" in r)!.ok ? "" : (race.find((r) => !r.ok) as { error: string }).error}”`,
+  );
+
+  // 6. Bulk is a loop over the single path: five fresh people land, the
+  // already-checked racer is skipped with a reason, and the overlap rule
+  // skips anyone checked into a concurrent session (people[1] still holds
+  // attendance on the target session from step 1).
+  const bulkTargets = [...allPeople.slice(20, 25).map((p) => p.id), racer.id, people[1].id];
+  const bulk = await bulkCheckIn(overlapping.id, bulkTargets, dana.id);
+  console.log(
+    `✓ bulk: ${bulk.checkedIn} checked in, ${bulk.skipped.length} skipped (${bulk.skipped
+      .map((s) => s.error)
+      .join(" | ")})`,
+  );
+  if (bulk.checkedIn !== 5 || bulk.skipped.length !== 2) {
+    throw new Error(`Bulk accounting wrong: expected 5 in / 2 skipped, got ${bulk.checkedIn} / ${bulk.skipped.length}`);
+  }
 
   console.log("\nBlock 3 exit test PASSED");
 }

@@ -38,6 +38,14 @@ demands a reason. The wrong award is not erased — it is **offset by a dated
 correction entry**. Nobody edits history in this product; that is the ledger
 promise, and it is enforced in the data layer, not by policy.
 
+If the lines question comes up (it will): switch the demo user to **Priya
+Natarajan — door staff** and show the same roster from a second seat. Any
+number of deputized devices work the same list — simultaneous taps can't
+double-award, screens converge on their own, and "Check in all shown" clears
+a settled room in one confirmed click while still writing individual,
+overlap-checked ledger entries. Door staff can record; only admins can
+correct.
+
 ## Scene 3 — The number the state sees (2.5 min)
 
 *My transcript.*

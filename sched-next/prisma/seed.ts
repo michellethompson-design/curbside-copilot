@@ -145,12 +145,14 @@ async function main() {
   peopleData[0] = { orgId: org.id, name: "Dana Whitfield", email: "dana.whitfield@kvsd.example.org", licenseId: "PPID-204811" };
   peopleData[1] = { orgId: org.id, name: "Ruth Alvarez", email: "ruth.alvarez@kvsd.example.org", licenseId: "PPID-100019" };
   peopleData[2] = { orgId: org.id, name: "Marcus Bell", email: "marcus.bell@kvsd.example.org", licenseId: "PPID-317755" };
+  peopleData[3] = { orgId: org.id, name: "Priya Natarajan", email: "priya.natarajan@kvsd.example.org", licenseId: "PPID-402193" };
   await prisma.person.createMany({ data: peopleData });
   const people = await prisma.person.findMany({ where: { orgId: org.id }, orderBy: { createdAt: "asc" }, select: { id: true, email: true } });
   const byEmail = new Map(people.map((p) => [p.email, p.id]));
   const dana = byEmail.get("dana.whitfield@kvsd.example.org")!;
   const ruth = byEmail.get("ruth.alvarez@kvsd.example.org")!;
   const marcus = byEmail.get("marcus.bell@kvsd.example.org")!;
+  const priya = byEmail.get("priya.natarajan@kvsd.example.org")!;
   const personIds = people.map((p) => p.id);
 
   // --- events ----------------------------------------------------------------
@@ -185,6 +187,7 @@ async function main() {
       { personId: ruth, level: "ORG_OWNER" },
       { personId: dana, level: "ORG_ADMIN" },
       { personId: dana, level: "EVENT_ADMIN", eventId: inservice.id },
+      { personId: priya, level: "DOOR_STAFF", eventId: inservice.id },
       { personId: marcus, level: "ATTENDEE" },
     ],
   });
