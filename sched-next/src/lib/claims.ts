@@ -36,7 +36,8 @@ export async function submitClaim(input: {
   evidenceName?: string;
 }): Promise<ClaimResult> {
   if (!input.title.trim() || !input.provider.trim()) return { ok: false, error: "Title and provider are required." };
-  if (!(input.unitsRequested > 0)) return { ok: false, error: "Requested units must be positive." };
+  if (input.title.trim().length > 200) return { ok: false, error: "Keep the title under 200 characters." };
+  if (!(input.unitsRequested > 0)) return { ok: false, error: "Requested units must be a positive number." };
   const claim = await db.claim.create({ data: { ...input, status: "SUBMITTED" } });
   await db.claimEvent.create({
     data: { claimId: claim.id, actorId: input.personId, fromStatus: "—", toStatus: "SUBMITTED" },
@@ -76,8 +77,32 @@ export async function transitionClaim(
   note: string,
   unitsApproved?: number,
 ): Promise<ClaimResult> {
-  const claim = await db.claim.findUnique({ where: { id: claimId }, include: { creditType: true } });
+  const claim = await db.claim.findUnique({
+    where: { id: claimId },
+    include: { creditType: { include: { authorizations: true } } },
+  });
   if (!claim) return { ok: false, error: "Claim not found." };
+
+  // Grant authority holds on every path that writes credit, not just the
+  // door: approving a claim for a restricted type requires the approver to
+  // hold the required role org-wide (event-scoped grants don't cover
+  // off-platform credit).
+  let authorizationRole: string | null = null;
+  if (toStatus === "APPROVED" && claim.creditType.authorizations.length > 0) {
+    const required = claim.creditType.authorizations.map((a) => a.requiredRole);
+    const actorRoles = await db.role.findMany({ where: { personId: actorId } });
+    const match = actorRoles.find((r) => required.includes(r.level) && r.eventId === null);
+    authorizationRole = match?.level ?? null;
+    const authorized = !!match;
+    if (!authorized) {
+      return {
+        ok: false,
+        error: `${claim.creditType.name} can only be granted by ${required
+          .map((x) => x.replace(/_/g, " ").toLowerCase())
+          .join(" or ")} staff — route this claim to an authorized approver.`,
+      };
+    }
+  }
   if (!CLAIM_TRANSITIONS[claim.status]?.includes(toStatus)) {
     return { ok: false, error: `A ${CLAIM_STATUS_LABEL[claim.status]?.toLowerCase()} claim cannot move to ${CLAIM_STATUS_LABEL[toStatus]?.toLowerCase()}.` };
   }
@@ -104,7 +129,10 @@ export async function transitionClaim(
           units,
           kind: "AWARD",
           reason: `Off-platform: ${claim.title} (${claim.provider})`,
-          extensionsJson: JSON.stringify({ evidence_of_attendance: "self_reported_admin_approved" }),
+          extensionsJson: JSON.stringify({
+            evidence_of_attendance: "self_reported_admin_approved",
+            ...(authorizationRole ? { credit_type_authorization_role: authorizationRole } : {}),
+          }),
         },
       }) as never,
     );

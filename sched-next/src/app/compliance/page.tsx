@@ -20,9 +20,14 @@ export default async function CompliancePage({
   const org = await db.organization.findFirstOrThrow();
   const creditTypes = await db.creditType.findMany({ where: { orgId: org.id }, orderBy: { name: "asc" } });
   const creditTypeId = sp.creditTypeId ?? creditTypes.find((t) => t.name.includes("Act 48"))?.id ?? creditTypes[0].id;
-  const threshold = Number(sp.threshold ?? 6);
-  const from = sp.from ? new Date(sp.from) : undefined;
-  const to = sp.to ? new Date(sp.to) : undefined;
+  // Free-text inputs never take the page down: non-numeric or negative
+  // thresholds fall back to 6, malformed dates are ignored with a note.
+  const thresholdRaw = Number(sp.threshold ?? 6);
+  const threshold = Number.isFinite(thresholdRaw) && thresholdRaw > 0 ? thresholdRaw : 6;
+  const { invalidDateParam, parseDateParam } = await import("@/lib/dates");
+  const badDates = invalidDateParam(sp.from) || invalidDateParam(sp.to);
+  const from = parseDateParam(sp.from);
+  const to = parseDateParam(sp.to);
 
   const [report, missing] = await Promise.all([
     getComplianceReport(org.id, { creditTypeId, from, to }),
@@ -32,7 +37,9 @@ export default async function CompliancePage({
 
   const q = (sp.q ?? "").toLowerCase();
   const rows = q
-    ? report.rows.filter((r) => r.name.toLowerCase().includes(q) || (r.licenseId ?? "").includes(q))
+    ? report.rows.filter(
+        (r) => r.name.toLowerCase().includes(q) || (r.licenseId ?? "").toLowerCase().includes(q),
+      )
     : report.rows;
 
   const preset = getPreset(sp.preset);
@@ -83,6 +90,16 @@ export default async function CompliancePage({
           Download CSV
         </a>
       </form>
+      {badDates && (
+        <p role="alert" style={{ margin: "-8px 0 12px", fontSize: 12.5, color: "var(--red)" }}>
+          Dates must look like 2026-07-01 — the date filter was ignored.
+        </p>
+      )}
+      {Number(sp.threshold) !== threshold && sp.threshold !== undefined && (
+        <p role="alert" style={{ margin: "-8px 0 12px", fontSize: 12.5, color: "var(--red)" }}>
+          Threshold must be a positive number — using {threshold}.
+        </p>
+      )}
       <p style={{ margin: "-8px 0 18px", fontSize: 12.5, color: "var(--slate)" }}>
         <strong>{preset.name}</strong> — {preset.note}
         <br />
@@ -122,6 +139,13 @@ export default async function CompliancePage({
           </tr>
         </thead>
         <tbody>
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={5} style={{ color: "var(--slate)" }}>
+                No one matches “{sp.q}”. Try part of a name or the PPID digits.
+              </td>
+            </tr>
+          )}
           {rows.slice(0, 50).map((r) => (
             <tr key={r.personId}>
               <td>

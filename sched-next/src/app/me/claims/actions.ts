@@ -29,8 +29,11 @@ export async function submitClaimAction(formData: FormData): Promise<{ ok: boole
   const evidence = await storeEvidence(formData.get("evidence") as File | null);
   if (evidence && "error" in evidence) return { ok: false, error: evidence.error };
 
-  const activityDate = new Date(String(formData.get("activityDate") ?? ""));
-  if (Number.isNaN(activityDate.getTime())) return { ok: false, error: "Pick the activity date." };
+  // Anchor the date at noon UTC so it displays as the same calendar day in
+  // US timezones (midnight-UTC dates rendered in ET showed the prior day).
+  const dateRaw = String(formData.get("activityDate") ?? "").trim();
+  const activityDate = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? new Date(`${dateRaw}T12:00:00Z`) : new Date(NaN);
+  if (Number.isNaN(activityDate.getTime())) return { ok: false, error: "Pick the activity date as YYYY-MM-DD." };
 
   const result = await submitClaim({
     personId: user.id,

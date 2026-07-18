@@ -72,11 +72,13 @@ h3 { font-size: 16px; }
   color: #eef2f7;
   display: flex;
   align-items: center;
-  gap: 22px;
-  padding: 0 22px;
-  height: 56px;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  padding: 8px 22px;
+  min-height: 56px;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, var(--shadow-1);
 }
+.topbar nav { flex-wrap: wrap; min-width: 0; }
 .topbar .brand {
   font-family: var(--serif);
   font-size: 18px;
@@ -136,6 +138,8 @@ main.page.wide { max-width: 1320px; }
   border-radius: 10px;
   padding: 18px 20px;
   box-shadow: var(--shadow-1);
+  /* User-entered titles of any length break instead of blowing out the page. */
+  overflow-wrap: anywhere;
 }
 
 table.grid {
@@ -167,6 +171,11 @@ table.grid td {
 table.grid tr:last-child td { border-bottom: none; }
 table.grid tbody tr:hover td { background: #f8fafc; }
 td.num, th.num { text-align: right; }
+
+/* Narrow screens: wide tables scroll inside their own box, never the page. */
+@media (max-width: 700px) {
+  table.grid { display: block; overflow-x: auto; }
+}
 
 /* ---- badges ---- */
 .badge {

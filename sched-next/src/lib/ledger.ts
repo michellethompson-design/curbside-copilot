@@ -75,7 +75,7 @@ export async function checkIn(
   if (clash) {
     return {
       ok: false,
-      error: `Overlaps existing check-in: “${clash.session.title}”. Undo that one first.`,
+      error: `Overlaps existing check-in: “${clash.session.title}”. An admin can request a correction for the earlier check-in.`,
     };
   }
 

@@ -4,7 +4,11 @@ import { db } from "./db";
 // whose (title, start) already exists in the event is skipped, so re-pasting
 // a corrected sheet never duplicates sessions.
 
-/** UTC instant for a wall-clock time in America/New_York (EDT, UTC-4). */
+/**
+ * UTC instant for a wall-clock time in America/New_York, DST-correct: a
+ * November 9:00 is 14:00Z (EST) while an August 9:00 is 13:00Z (EDT). Uses
+ * the same Intl round-trip as the ICS importer — no timezone library.
+ */
 export function easternWallTime(dateISO: string, hhmm: string): Date | null {
   const dm = dateISO.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const tm = hhmm.trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -12,7 +16,10 @@ export function easternWallTime(dateISO: string, hhmm: string): Date | null {
   const hour = Number(tm[1]);
   const minute = Number(tm[2]);
   if (hour > 23 || minute > 59) return null;
-  return new Date(Date.UTC(Number(dm[1]), Number(dm[2]) - 1, Number(dm[3]), hour + 4, minute));
+  const utcGuess = new Date(Date.UTC(Number(dm[1]), Number(dm[2]) - 1, Number(dm[3]), hour, minute));
+  const inTz = new Date(utcGuess.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const offset = utcGuess.getTime() - inTz.getTime();
+  return new Date(utcGuess.getTime() + offset);
 }
 
 export async function createEvent(orgId: string, input: { name: string; venue: string; startISO: string; endISO: string }) {

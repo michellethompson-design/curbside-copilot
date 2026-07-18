@@ -17,6 +17,8 @@ export function fmtDateRange(a: Date, b: Date): string {
   const opts = { timeZone: TZ, month: "long", day: "numeric" } as const;
   const start = a.toLocaleDateString("en-US", opts);
   const end = b.toLocaleDateString("en-US", { ...opts, year: "numeric" });
+  // A single-day event shows one date, not "March 13–March 13".
+  if (end.startsWith(`${start},`)) return end;
   return `${start}–${end}`;
 }
 

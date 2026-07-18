@@ -1,3 +1,4 @@
+import { invalidDateParam, parseDateParam } from "@/lib/dates";
 import { buildExportRows } from "@/lib/compliance";
 import { getPreset, renderCsv } from "@/lib/presets";
 
@@ -12,13 +13,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
   if (!creditTypeId) return new Response("creditTypeId required", { status: 400 });
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  if (invalidDateParam(from) || invalidDateParam(to)) {
+    return new Response("from/to must be ISO dates, e.g. 2026-07-01", { status: 400 });
+  }
   const preset = getPreset(url.searchParams.get("preset"));
 
   const data = await buildExportRows(
     orgId,
     creditTypeId,
-    from ? new Date(from) : undefined,
-    to ? new Date(to) : undefined,
+    parseDateParam(from),
+    parseDateParam(to),
   );
   if (!data) return new Response("Not found", { status: 404 });
 

@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { currentUser, isAdmin } from "@/lib/demo-user";
 import { ensureCertificate, type CertTotals } from "@/lib/certificates";
 import { fmtDateRange, fmtDayShort, fmtUnits } from "@/lib/format";
 import { PrintButton } from "@/components/PrintButton";
@@ -16,6 +17,11 @@ export default async function CertificatePage({
   params: Promise<{ personId: string; eventId: string }>;
 }) {
   const { personId, eventId } = await params;
+  // A certificate belongs to its person: only they (or an admin) can view it
+  // here. Third parties verify by UCID at /verify, which shows the paper and
+  // nothing more — never the license id of someone else's record.
+  const viewer = await currentUser();
+  if (!viewer || (viewer.id !== personId && !isAdmin(viewer))) redirect("/verify");
   const [person, event] = await Promise.all([
     db.person.findUnique({ where: { id: personId }, include: { org: true } }),
     db.event.findUnique({ where: { id: eventId } }),

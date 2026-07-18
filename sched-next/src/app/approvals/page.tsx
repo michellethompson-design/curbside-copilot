@@ -12,7 +12,12 @@ export const dynamic = "force-dynamic";
 // The reviewer's desk: off-platform claims and correction requests, both of
 // which end in ledger writes — which is exactly why they get a queue and a
 // second pair of eyes instead of a quiet edit.
-export default async function ApprovalsPage() {
+export default async function ApprovalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ note?: string }>;
+}) {
+  const sp = await searchParams;
   const user = await currentUser();
   if (!isAdmin(user)) redirect("/");
 
@@ -48,6 +53,11 @@ export default async function ApprovalsPage() {
         </p>
       </div>
 
+      {sp.note && (
+        <p role="status" style={{ color: "var(--ledger-deep)", fontWeight: 600 }}>
+          {sp.note}
+        </p>
+      )}
       <h2 style={{ margin: "6px 0 10px" }}>
         Off-platform claims <span className="badge pending num">{claims.length}</span>
       </h2>

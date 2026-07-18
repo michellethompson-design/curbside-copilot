@@ -163,7 +163,8 @@ export async function findPeopleMissingCredits(
     ...report.rows
       .filter((r) => r.units < threshold)
       .map((r) => ({ ...r, shortfall: Math.round((threshold - r.units) * 100) / 100 })),
-    ...uncovered.map((p) => ({
+    // Zero-record people are only "short" when the requirement is positive.
+    ...(threshold <= 0 ? [] : uncovered).map((p) => ({
       personId: p.id,
       name: p.name,
       email: p.email,

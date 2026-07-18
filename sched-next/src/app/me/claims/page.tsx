@@ -17,7 +17,12 @@ const STATUS_BADGE: Record<string, string> = {
 // Off-platform PD: the regional conference, the book study, the workshop that
 // didn't happen on this platform. Submit it with evidence; an admin reviews;
 // approval writes it to the same ledger everything else lives on.
-export default async function MyClaimsPage() {
+export default async function MyClaimsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; ok?: string }>;
+}) {
+  const sp = await searchParams;
   const user = await currentUser();
   if (!user) return null;
   const [claims, creditTypes] = await Promise.all([
@@ -31,11 +36,15 @@ export default async function MyClaimsPage() {
 
   async function submit(formData: FormData) {
     "use server";
-    await submitClaimAction(formData);
+    const { redirect } = await import("next/navigation");
+    const result = await submitClaimAction(formData);
+    redirect(result.ok ? "/me/claims?ok=1" : `/me/claims?error=${encodeURIComponent(result.error ?? "Submission failed")}`);
   }
   async function resubmit(formData: FormData) {
     "use server";
-    await resubmitClaimAction(formData);
+    const { redirect } = await import("next/navigation");
+    const result = await resubmitClaimAction(formData);
+    redirect(result.ok ? "/me/claims?ok=1" : `/me/claims?error=${encodeURIComponent(result.error ?? "Resubmission failed")}`);
   }
 
   return (
@@ -50,6 +59,16 @@ export default async function MyClaimsPage() {
         </p>
       </div>
 
+      {sp.error && (
+        <p role="alert" style={{ color: "var(--red)", fontWeight: 600 }}>
+          {sp.error}
+        </p>
+      )}
+      {sp.ok && (
+        <p role="status" style={{ color: "var(--ledger-deep)", fontWeight: 600 }}>
+          Claim submitted — it&rsquo;s in the review queue.
+        </p>
+      )}
       <form action={submit} className="card" style={{ marginBottom: 24, display: "grid", gap: 10, maxWidth: 640 }}>
         <h2>New claim</h2>
         <label>
