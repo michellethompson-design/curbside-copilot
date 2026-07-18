@@ -28,13 +28,49 @@ model Person {
   email         String         @unique
   // Educator license number, e.g. a PA PPID for Act 48 reporting.
   licenseId     String?
+  // MVAR extension: additional license ids (JSON array) — multi-license
+  // teachers are common in e.g. Vermont.
+  licenseIdsJson String?
   roles         Role[]
   attendance    Attendance[]
   creditRecords CreditRecord[]
   agendaItems   AgendaItem[]
+  certificates  CertificateIssue[]
   createdAt     DateTime       @default(now())
 
   @@index([orgId])
+}
+
+// An issued certificate is a snapshot with a permanent identity (UCID).
+// Issues are append-only in spirit: a certificate is never edited — when the
+// underlying ledger changes, a new issue with a new UCID supersedes the old
+// one, and both remain forever verifiable. Status transitions (VALID →
+// SUPERSEDED | REVOKED) are the only permitted writes, made in
+// src/lib/certificates.ts.
+model CertificateIssue {
+  id             String   @id @default(cuid())
+  ucid           String   @unique
+  personId       String
+  person         Person   @relation(fields: [personId], references: [id])
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id])
+  // Snapshot at issuance — what the printed paper says.
+  personName     String
+  licenseId      String?
+  eventName      String
+  eventStartsAt  DateTime
+  eventEndsAt    DateTime
+  sessionCount   Int
+  // [{ creditType, unit, units }]
+  totalsJson     String
+  // Distinct attendance verification methods behind the credit.
+  methodsJson    String
+  // VALID | SUPERSEDED | REVOKED
+  status         String   @default("VALID")
+  supersededById String?
+  issuedAt       DateTime @default(now())
+
+  @@index([personId, eventId])
 }
 
 // Scoped role grants: ORG_OWNER | ORG_ADMIN | EVENT_ADMIN | ATTENDEE.
@@ -67,6 +103,7 @@ model Event {
   sessions      Session[]
   creditRecords CreditRecord[]
   eventAdmins   Role[]
+  certificates  CertificateIssue[]
 
   @@index([orgId])
 }
@@ -193,6 +230,9 @@ model CreditRecord {
   // AWARD | ADJUSTMENT
   kind         String        @default("AWARD")
   reason       String?
+  // MVAR per-jurisdiction extension fields, JSON object — e.g.
+  // {"credit_type_authorization_role":"PIL_AUTHORIZED","loi_90_fiscal_year":2026}
+  extensionsJson String?
   offsetsId    String?
   offsets      CreditRecord? @relation("Correction", fields: [offsetsId], references: [id])
   offsetBy     CreditRecord[] @relation("Correction")

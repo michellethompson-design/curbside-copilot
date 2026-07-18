@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser, isAdmin } from "@/lib/demo-user";
 import { findPeopleMissingCredits, getComplianceReport } from "@/lib/compliance";
+import { getPreset, PRESETS } from "@/lib/presets";
 import { fmtUnits } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function CompliancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ creditTypeId?: string; from?: string; to?: string; threshold?: string; q?: string }>;
+  searchParams: Promise<{ creditTypeId?: string; from?: string; to?: string; threshold?: string; q?: string; preset?: string }>;
 }) {
   const user = await currentUser();
   if (!isAdmin(user)) redirect("/");
@@ -34,8 +35,9 @@ export default async function CompliancePage({
     ? report.rows.filter((r) => r.name.toLowerCase().includes(q) || (r.licenseId ?? "").includes(q))
     : report.rows;
 
+  const preset = getPreset(sp.preset);
   const exportUrl =
-    `/api/orgs/${org.id}/compliance/export?creditTypeId=${creditTypeId}` +
+    `/api/orgs/${org.id}/compliance/export?creditTypeId=${creditTypeId}&preset=${preset.id}` +
     (sp.from ? `&from=${sp.from}` : "") +
     (sp.to ? `&to=${sp.to}` : "");
 
@@ -68,11 +70,24 @@ export default async function CompliancePage({
         <input id="c-threshold" type="text" name="threshold" defaultValue={String(threshold)} style={{ width: 60 }} className="num" />
         <label htmlFor="c-q">Find person</label>
         <input id="c-q" type="search" name="q" defaultValue={sp.q ?? ""} placeholder="Name or PPID" />
+        <label htmlFor="c-preset">Export preset</label>
+        <select id="c-preset" name="preset" defaultValue={preset.id}>
+          {PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
         <button type="submit">Apply</button>
         <a className="btn primary" href={exportUrl} download>
-          Download Act 48 / PERMS CSV
+          Download CSV
         </a>
       </form>
+      <p style={{ margin: "-8px 0 18px", fontSize: 12.5, color: "var(--slate)" }}>
+        <strong>{preset.name}</strong> — {preset.note}
+        <br />
+        Columns: <span className="num">{preset.columns.map((c) => c.header).join(" · ")}</span>
+      </p>
 
       <section className="card" style={{ marginBottom: 20, borderLeft: "3px solid var(--amber)" }} aria-label="Below threshold">
         <h2 style={{ marginBottom: 6 }}>

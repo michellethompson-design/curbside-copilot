@@ -91,6 +91,7 @@ async function main() {
   // src/lib/db.ts protects application paths; a full demo reset is the one
   // sanctioned teardown, and it truncates rather than deleting the database
   // file so a running dev server picks up the fresh state immediately.
+  await prisma.certificateIssue.deleteMany();
   await prisma.creditRecord.deleteMany();
   await prisma.attendance.deleteMany();
   await prisma.agendaItem.deleteMany();
@@ -164,6 +165,8 @@ async function main() {
   peopleData[0] = { orgId: org.id, name: "Dana Whitfield", email: "dana.whitfield@kvsd.example.org", licenseId: "PPID-204811" };
   peopleData[1] = { orgId: org.id, name: "Ruth Alvarez", email: "ruth.alvarez@kvsd.example.org", licenseId: "PPID-100019" };
   peopleData[2] = { orgId: org.id, name: "Marcus Bell", email: "marcus.bell@kvsd.example.org", licenseId: "PPID-317755" };
+  // Marcus also demonstrates the multi-license MVAR extension (common in VT).
+  const marcusLicenses = JSON.stringify(["PPID-317755", "VT-88231"]);
   peopleData[3] = { orgId: org.id, name: "Priya Natarajan", email: "priya.natarajan@kvsd.example.org", licenseId: "PPID-402193" };
   await prisma.person.createMany({ data: peopleData });
   const people = await prisma.person.findMany({ where: { orgId: org.id }, orderBy: { createdAt: "asc" }, select: { id: true, email: true } });
@@ -172,6 +175,7 @@ async function main() {
   const ruth = byEmail.get("ruth.alvarez@kvsd.example.org")!;
   const marcus = byEmail.get("marcus.bell@kvsd.example.org")!;
   const priya = byEmail.get("priya.natarajan@kvsd.example.org")!;
+  await prisma.person.update({ where: { id: marcus }, data: { licenseIdsJson: marcusLicenses } });
   const personIds = people.map((p) => p.id);
 
   // --- events ----------------------------------------------------------------

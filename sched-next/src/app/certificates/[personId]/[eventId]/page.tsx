@@ -1,40 +1,29 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { ensureCertificate, type CertTotals } from "@/lib/certificates";
 import { fmtDateRange, fmtDayShort, fmtUnits } from "@/lib/format";
 import { PrintButton } from "@/components/PrintButton";
 import { Seal } from "@/components/Seal";
 
 export const dynamic = "force-dynamic";
 
-// Completion certificate, self-serve and re-downloadable forever. People lose
-// certificates constantly and email staff for reissues; this page is the
-// reissue. Print it or save as PDF from the print dialog.
+// Completion certificate, self-serve and re-downloadable forever. Reloading
+// re-issues automatically if the ledger changed — a corrected record quietly
+// supersedes the old paper, and every UCID ever printed stays verifiable.
 export default async function CertificatePage({
   params,
 }: {
   params: Promise<{ personId: string; eventId: string }>;
 }) {
   const { personId, eventId } = await params;
-  const [person, event, records] = await Promise.all([
+  const [person, event] = await Promise.all([
     db.person.findUnique({ where: { id: personId }, include: { org: true } }),
     db.event.findUnique({ where: { id: eventId } }),
-    db.creditRecord.findMany({
-      where: { personId, eventId },
-      include: { creditType: true },
-    }),
   ]);
   if (!person || !event) notFound();
 
-  const totals = new Map<string, { name: string; unit: string; units: number }>();
-  for (const r of records) {
-    const t = totals.get(r.creditTypeId) ?? { name: r.creditType.name, unit: r.creditType.unit, units: 0 };
-    t.units = Math.round((t.units + r.units) * 10000) / 10000;
-    totals.set(r.creditTypeId, t);
-  }
-  const earned = [...totals.values()].filter((t) => t.units > 0);
-  const sessionCount = new Set(records.filter((r) => r.units > 0).map((r) => r.sessionId)).size;
-
-  if (earned.length === 0) {
+  const issue = await ensureCertificate(personId, eventId);
+  if (!issue) {
     return (
       <main className="page">
         <h1>No certificate yet</h1>
@@ -45,6 +34,7 @@ export default async function CertificatePage({
       </main>
     );
   }
+  const earned = JSON.parse(issue.totalsJson) as CertTotals[];
 
   return (
     <main className="page cert-doc">
@@ -55,17 +45,19 @@ export default async function CertificatePage({
         <div className="doc-org">{person.org.name}</div>
         <div className="cert-title">Certificate of Completion</div>
         <p className="cert-line">This certifies that</p>
-        <div className="cert-name">{person.name}</div>
-        {person.licenseId && <div className="cert-ppid num">Professional ID {person.licenseId}</div>}
+        <div className="cert-name">{issue.personName}</div>
+        {issue.licenseId && <div className="cert-ppid num">Professional ID {issue.licenseId}</div>}
         <p className="cert-line">
-          completed {sessionCount} session{sessionCount === 1 ? "" : "s"} of professional development at
+          completed {issue.sessionCount} session{issue.sessionCount === 1 ? "" : "s"} of professional development at
         </p>
-        <div className="cert-event">{event.name}</div>
-        <div className="cert-dates">{fmtDateRange(event.startsAt, event.endsAt)} · {event.venue}</div>
+        <div className="cert-event">{issue.eventName}</div>
+        <div className="cert-dates">
+          {fmtDateRange(issue.eventStartsAt, issue.eventEndsAt)} · {event.venue}
+        </div>
         <div className="cert-credits">
           {earned.map((t) => (
-            <div key={t.name} className="cert-credit">
-              <span className="num">{fmtUnits(t.units)}</span> {t.name}
+            <div key={t.creditType} className="cert-credit">
+              <span className="num">{fmtUnits(t.units)}</span> {t.creditType}
             </div>
           ))}
         </div>
@@ -78,8 +70,8 @@ export default async function CertificatePage({
             <div className="cert-sig-label">Issuing organization</div>
           </div>
           <div>
-            <div className="cert-sig num">{fmtDayShort(new Date())}</div>
-            <div className="cert-sig-label">Reissued from the credit ledger</div>
+            <div className="cert-sig num">{issue.ucid}</div>
+            <div className="cert-sig-label">Verify at /verify · issued {fmtDayShort(issue.issuedAt)}</div>
           </div>
         </div>
       </div>

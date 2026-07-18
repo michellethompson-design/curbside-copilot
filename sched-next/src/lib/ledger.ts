@@ -30,13 +30,18 @@ export async function checkIn(
   // to this event or org-wide. No admin bypass — that is the entire point of
   // the rule (Pasadena ISD rejected two products for enforcing it in UI only).
   const restricted = session.credits.filter((c) => c.creditType.authorizations.length > 0);
+  // MVAR extension: when a restricted type is granted, the record names the
+  // role that authorized the assignment (credit_type_authorization_role).
+  const authRoleByType = new Map<string, string>();
   if (restricted.length > 0) {
     const actorRoles = await db.role.findMany({ where: { personId: recordedById } });
     for (const c of restricted) {
       const required = c.creditType.authorizations.map((a) => a.requiredRole);
-      const authorized = actorRoles.some(
+      const match = actorRoles.find(
         (r) => required.includes(r.level) && (r.eventId === null || r.eventId === session.eventId),
       );
+      if (match) authRoleByType.set(c.creditTypeId, match.level);
+      const authorized = !!match;
       if (!authorized) {
         return {
           ok: false,
@@ -100,6 +105,9 @@ export async function checkIn(
             creditTypeId: a.creditType.id,
             units: a.units,
             kind: "AWARD",
+            extensionsJson: authRoleByType.has(a.creditType.id)
+              ? JSON.stringify({ credit_type_authorization_role: authRoleByType.get(a.creditType.id) })
+              : null,
           },
         }),
       ),
