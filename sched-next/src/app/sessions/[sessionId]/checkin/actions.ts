@@ -5,10 +5,10 @@ import { db } from "@/lib/db";
 import {
   bulkCheckIn,
   checkIn,
-  undoCheckIn,
   type BulkCheckInSummary,
   type CheckInResult,
 } from "@/lib/ledger";
+import { requestCorrection } from "@/lib/corrections";
 import { canCheckIn, currentUser, isAdmin } from "@/lib/demo-user";
 
 async function authorize(sessionId: string) {
@@ -42,16 +42,22 @@ export async function bulkCheckInAction(
   return summary;
 }
 
-export async function undoCheckInAction(
+export async function requestCorrectionAction(
   sessionId: string,
   personId: string,
+  reasonCode: string,
   reason: string,
 ): Promise<CheckInResult> {
-  // Corrections stay admin-only: door staff record attendance; changing the
-  // record's history is a different level of trust.
+  // Corrections are two-person: an admin requests here; a different admin
+  // approves on /approvals, which is what executes the offsetting entries.
+  // Door staff record attendance; touching the record's history is a
+  // different level of trust.
   const actor = await currentUser();
-  if (!actor || !isAdmin(actor)) return { ok: false, error: "Only admins can correct check-ins." };
-  const result = await undoCheckIn(sessionId, personId, reason, actor.id);
-  if (result.ok) revalidatePath(`/sessions/${sessionId}`);
+  if (!actor || !isAdmin(actor)) return { ok: false, error: "Only admins can request corrections." };
+  const result = await requestCorrection(sessionId, personId, actor.id, reasonCode, reason);
+  if (result.ok) {
+    revalidatePath(`/sessions/${sessionId}`);
+    return { ok: true, awarded: [] };
+  }
   return result;
 }

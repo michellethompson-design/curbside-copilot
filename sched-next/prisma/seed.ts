@@ -93,6 +93,9 @@ async function main() {
   // file so a running dev server picks up the fresh state immediately.
   await prisma.certificateIssue.deleteMany();
   await prisma.creditRecord.deleteMany();
+  await prisma.claimEvent.deleteMany();
+  await prisma.claim.deleteMany();
+  await prisma.correctionRequest.deleteMany();
   await prisma.attendance.deleteMany();
   await prisma.agendaItem.deleteMany();
   await prisma.sessionCredit.deleteMany();
@@ -413,6 +416,23 @@ async function main() {
     }
   }
   await prisma.agendaItem.createMany({ data: agendaRows });
+
+  // One waiting off-platform claim so the approvals queue has a live demo.
+  const marcusClaim = await prisma.claim.create({
+    data: {
+      orgId: org.id,
+      personId: marcus,
+      creditTypeId: act48.id,
+      title: "Regional Literacy Conference — assessment strand",
+      provider: "PA Reading Association",
+      activityDate: et("2026-06-20", 9),
+      unitsRequested: 3.0,
+      note: "Full-day strand; agenda attached at the office if needed.",
+    },
+  });
+  await prisma.claimEvent.create({
+    data: { claimId: marcusClaim.id, actorId: marcus, fromStatus: "—", toStatus: "SUBMITTED" },
+  });
 
   const counts = {
     people: await prisma.person.count(),

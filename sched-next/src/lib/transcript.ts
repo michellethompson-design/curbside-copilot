@@ -20,6 +20,7 @@ export async function getPersonTranscript(personId: string, filters: TranscriptF
     orderBy: { createdAt: "asc" },
     include: {
       event: { select: { id: true, name: true, startsAt: true } },
+      claim: { select: { id: true, title: true, provider: true, activityDate: true } },
       creditType: { select: { id: true, name: true, unit: true } },
     },
   });
@@ -34,12 +35,12 @@ export async function getPersonTranscript(personId: string, filters: TranscriptF
   const entries = records
     .map((r) => {
       const session = r.sessionId ? sessionById.get(r.sessionId) : undefined;
-      const earnedAt = session?.startsAt ?? r.createdAt;
+      const earnedAt = session?.startsAt ?? r.claim?.activityDate ?? r.createdAt;
       return {
         id: r.id,
-        eventId: r.event.id,
-        eventName: r.event.name,
-        sessionTitle: session?.title ?? "—",
+        eventId: r.event?.id ?? null,
+        eventName: r.event?.name ?? (r.claim ? `Off-platform · ${r.claim.provider}` : "—"),
+        sessionTitle: session?.title ?? r.claim?.title ?? "—",
         earnedAt,
         year: yearOf(earnedAt),
         creditTypeId: r.creditType.id,

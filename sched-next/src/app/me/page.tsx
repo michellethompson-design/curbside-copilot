@@ -25,6 +25,7 @@ export default async function MyAgendaPage() {
   // positive. Lost the PDF? Come back here, any time, forever.
   const certByEvent = new Map<string, { name: string; endsAt: Date; units: number }>();
   for (const r of credits) {
+    if (!r.event) continue; // off-platform credit has no event certificate
     const e = certByEvent.get(r.event.id) ?? { name: r.event.name, endsAt: r.event.endsAt, units: 0 };
     e.units = Math.round((e.units + r.units) * 10000) / 10000;
     certByEvent.set(r.event.id, e);
@@ -89,6 +90,15 @@ export default async function MyAgendaPage() {
           </p>
         </div>
       )}
+
+      <section aria-label="Off-platform PD" style={{ marginTop: 32 }}>
+        <h2 style={{ marginBottom: 8 }}>Outside PD</h2>
+        <p style={{ color: "var(--slate)", margin: "0 0 8px" }}>
+          Conference or book study off this platform?{" "}
+          <Link href="/me/claims">Submit it for credit</Link> — approved claims land on your
+          transcript like everything else.
+        </p>
+      </section>
 
       <section aria-label="My certificates" style={{ marginTop: 32 }}>
         <h2 style={{ marginBottom: 8 }}>My certificates</h2>

@@ -106,7 +106,7 @@ export async function getComplianceReport(orgId: string, filters: ComplianceFilt
   for (const r of records) {
     const e = byPerson.get(r.personId) ?? { units: 0, events: new Set() };
     e.units = Math.round((e.units + r.units) * 10000) / 10000;
-    e.events.add(r.eventId);
+    if (r.eventId) e.events.add(r.eventId);
     byPerson.set(r.personId, e);
   }
 

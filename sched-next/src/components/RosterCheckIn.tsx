@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   bulkCheckInAction,
   checkInAction,
-  undoCheckInAction,
+  requestCorrectionAction,
 } from "@/app/sessions/[sessionId]/checkin/actions";
 
 export type RosterPerson = {
@@ -12,7 +12,16 @@ export type RosterPerson = {
   name: string;
   email: string;
   checkedIn: boolean;
+  correctionPending?: boolean;
 };
+
+const REASON_OPTIONS = [
+  { code: "DUPLICATE_CHECKIN", label: "Duplicate check-in" },
+  { code: "WRONG_PERSON", label: "Wrong person tapped" },
+  { code: "LEFT_EARLY", label: "Left early" },
+  { code: "DATA_ENTRY_ERROR", label: "Data entry error" },
+  { code: "OTHER", label: "Other (explain)" },
+];
 
 // Roster mode: built for a gym with bad wifi and as many doors as Dana can
 // deputize. Multiple devices work the same roster at once — the server is the
@@ -35,6 +44,7 @@ export function RosterCheckIn({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [undoFor, setUndoFor] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState(REASON_OPTIONS[0].code);
   const [bulkArmed, setBulkArmed] = useState(false);
   const [bulkNote, setBulkNote] = useState("");
   const [pending, startTransition] = useTransition();
@@ -125,9 +135,10 @@ export function RosterCheckIn({
 
   function handleUndo(personId: string) {
     startTransition(async () => {
-      const result = await undoCheckInAction(sessionId, personId, reason);
+      const result = await requestCorrectionAction(sessionId, personId, reasonCode, reason);
       if (result.ok) {
-        setChecked(personId, false);
+        // The check-in stands until a second admin approves on /approvals.
+        setPeople((ps) => ps.map((p) => (p.id === personId ? { ...p, correctionPending: true } : p)));
         setUndoFor(null);
         setReason("");
       } else {
@@ -196,16 +207,30 @@ export function RosterCheckIn({
                   </button>
                 ) : undoFor === p.id ? (
                   <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <select
+                      value={reasonCode}
+                      onChange={(e) => setReasonCode(e.target.value)}
+                      aria-label="Reason code"
+                    >
+                      {REASON_OPTIONS.map((o) => (
+                        <option key={o.code} value={o.code}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type="text"
-                      placeholder="Reason for correction"
+                      placeholder="Details (required for Other)"
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
-                      aria-label="Reason for correction"
-                      style={{ width: 200 }}
+                      aria-label="Correction details"
+                      style={{ width: 180 }}
                     />
-                    <button disabled={pending || !reason.trim()} onClick={() => handleUndo(p.id)}>
-                      Confirm
+                    <button
+                      disabled={pending || (reasonCode === "OTHER" && !reason.trim())}
+                      onClick={() => handleUndo(p.id)}
+                    >
+                      Request correction
                     </button>
                     <button className="quiet" onClick={() => { setUndoFor(null); setReason(""); }}>
                       Cancel
@@ -214,10 +239,14 @@ export function RosterCheckIn({
                 ) : (
                   <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <span className={fresh.has(p.id) ? "stamp stamp-in" : "stamp"}>✓ Recorded</span>
-                    {canCorrect && (
-                      <button className="quiet" style={{ fontSize: 12.5 }} onClick={() => setUndoFor(p.id)}>
-                        Undo…
-                      </button>
+                    {p.correctionPending ? (
+                      <span className="badge pending">Correction pending 2nd admin</span>
+                    ) : (
+                      canCorrect && (
+                        <button className="quiet" style={{ fontSize: 12.5 }} onClick={() => setUndoFor(p.id)}>
+                          Undo…
+                        </button>
+                      )
                     )}
                   </span>
                 )}

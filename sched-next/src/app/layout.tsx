@@ -35,6 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Link href="/me">My agenda</Link>
             {user && <Link href={`/people/${user.id}/transcript`}>My transcript</Link>}
             {admin && <Link href="/compliance">Compliance</Link>}
+            {admin && <Link href="/approvals">Approvals</Link>}
             {admin && <Link href="/settings/credit-types">Credit settings</Link>}
           </nav>
           {user && <UserSwitcher options={options} currentId={user.id} />}

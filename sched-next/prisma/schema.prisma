@@ -36,6 +36,7 @@ model Person {
   creditRecords CreditRecord[]
   agendaItems   AgendaItem[]
   certificates  CertificateIssue[]
+  claims        Claim[]
   createdAt     DateTime       @default(now())
 
   @@index([orgId])
@@ -165,6 +166,7 @@ model CreditType {
   sessionCredits   SessionCredit[]
   creditRecords    CreditRecord[]
   authorizations   CreditTypeAuthorization[]
+  claims           Claim[]
 
   @@unique([orgId, jurisdiction, name])
   @@index([orgId])
@@ -221,8 +223,11 @@ model CreditRecord {
   id           String        @id @default(cuid())
   personId     String
   person       Person        @relation(fields: [personId], references: [id])
-  eventId      String
-  event        Event         @relation(fields: [eventId], references: [id])
+  // Null for off-platform credit (approved claims), which has no event.
+  eventId      String?
+  event        Event?        @relation(fields: [eventId], references: [id])
+  claimId      String?
+  claim        Claim?        @relation(fields: [claimId], references: [id])
   sessionId    String?
   creditTypeId String
   creditType   CreditType    @relation(fields: [creditTypeId], references: [id])
@@ -240,6 +245,71 @@ model CreditRecord {
 
   @@index([personId, creditTypeId])
   @@index([eventId])
+}
+
+// Off-platform PD claim (P1 SLC-2): a teacher submits outside learning —
+// a regional conference, a book study — with evidence; an admin reviews.
+// Approval writes a ledger AWARD (evidence axis: self-reported, admin-
+// approved). State machine: SUBMITTED → UNDER_REVIEW → APPROVED | REJECTED |
+// CHANGES_REQUESTED → (resubmit) SUBMITTED. Every transition lands in the
+// append-only ClaimEvent trail.
+model Claim {
+  id             String         @id @default(cuid())
+  orgId          String
+  personId       String
+  person         Person         @relation(fields: [personId], references: [id])
+  creditTypeId   String
+  creditType     CreditType     @relation(fields: [creditTypeId], references: [id])
+  title          String
+  provider       String
+  activityDate   DateTime
+  unitsRequested Float
+  note           String         @default("")
+  evidencePath   String?
+  evidenceName   String?
+  status         String         @default("SUBMITTED")
+  events         ClaimEvent[]
+  creditRecords  CreditRecord[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([orgId, status])
+  @@index([personId])
+}
+
+model ClaimEvent {
+  id         String   @id @default(cuid())
+  claimId    String
+  claim      Claim    @relation(fields: [claimId], references: [id])
+  actorId    String
+  fromStatus String
+  toStatus   String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([claimId])
+}
+
+// Two-person corrections (P1 override approval): an admin REQUESTS an undo
+// with a reason code; a DIFFERENT admin approves, which executes the
+// offsetting ledger entries. Requests are their own record so the approval
+// trail survives independently of the ledger it acts on.
+model CorrectionRequest {
+  id            String    @id @default(cuid())
+  sessionId     String
+  personId      String
+  requestedById String
+  // DUPLICATE_CHECKIN | WRONG_PERSON | LEFT_EARLY | DATA_ENTRY_ERROR | OTHER
+  reasonCode    String
+  reason        String
+  // PENDING | APPROVED | REJECTED
+  status        String    @default("PENDING")
+  decidedById   String?
+  decisionNote  String?
+  createdAt     DateTime  @default(now())
+  decidedAt     DateTime?
+
+  @@index([status])
 }
 
 // Attendee personal agenda ("my schedule").

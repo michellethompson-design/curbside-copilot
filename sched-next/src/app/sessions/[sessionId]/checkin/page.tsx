@@ -24,13 +24,24 @@ export default async function CheckInPage({ params }: { params: Promise<{ sessio
   if (!canCheckIn(user, session.eventId)) redirect(`/sessions/${sessionId}`);
   const admin = isAdmin(user);
 
-  const people = await db.person.findMany({
-    where: { orgId: session.event.orgId },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, email: true },
-  });
+  const [people, pendingCorrections] = await Promise.all([
+    db.person.findMany({
+      where: { orgId: session.event.orgId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, email: true },
+    }),
+    db.correctionRequest.findMany({
+      where: { sessionId, status: "PENDING" },
+      select: { personId: true },
+    }),
+  ]);
   const checked = new Set(session.attendance.map((a) => a.personId));
-  const roster: RosterPerson[] = people.map((p) => ({ ...p, checkedIn: checked.has(p.id) }));
+  const pendingSet = new Set(pendingCorrections.map((c) => c.personId));
+  const roster: RosterPerson[] = people.map((p) => ({
+    ...p,
+    checkedIn: checked.has(p.id),
+    correctionPending: pendingSet.has(p.id),
+  }));
 
   const minutes = sessionMinutes(session.startsAt, session.endsAt);
   const creditSummary = session.credits
