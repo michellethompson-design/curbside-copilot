@@ -67,7 +67,9 @@ export async function ensureCertificate(personId: string, eventId: string) {
     where: { personId, eventId, status: "VALID" },
     orderBy: { issuedAt: "desc" },
   });
-  const personName = person.name;
+  // The printed name is the certificate name when set (P5 legal-name
+  // handling); changing it supersedes existing certificates on next view.
+  const personName = person.certificateName?.trim() || person.name;
   if (current && current.totalsJson === totalsJson && current.personName === personName) {
     return current;
   }

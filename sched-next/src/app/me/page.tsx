@@ -2,15 +2,33 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/demo-user";
 import { fmtDay, fmtTime } from "@/lib/format";
+import { revalidatePath } from "next/cache";
 import { trackColor } from "@/lib/track-color";
+import { fmtDayShort } from "@/lib/format";
 import { ClipboardIllustration, RibbonIllustration } from "@/components/illustrations";
 
 export const dynamic = "force-dynamic";
 
+async function updateCertificateName(formData: FormData) {
+  "use server";
+  const { currentUser } = await import("@/lib/demo-user");
+  const { db } = await import("@/lib/db");
+  const user = await currentUser();
+  if (!user) return;
+  const toName = String(formData.get("certificateName") ?? "").trim();
+  const fromName = user.certificateName?.trim() || user.name;
+  if (!toName || toName === fromName) return;
+  await db.$transaction([
+    db.person.update({ where: { id: user.id }, data: { certificateName: toName } }),
+    db.nameChange.create({ data: { personId: user.id, fromName, toName, changedById: user.id } }),
+  ]);
+  revalidatePath("/me");
+}
+
 export default async function MyAgendaPage() {
   const user = await currentUser();
   if (!user) return null;
-  const [items, credits] = await Promise.all([
+  const [items, credits, nameChanges] = await Promise.all([
     db.agendaItem.findMany({
       where: { personId: user.id },
       include: { session: { include: { event: true } } },
@@ -19,6 +37,7 @@ export default async function MyAgendaPage() {
       where: { personId: user.id },
       include: { event: { select: { id: true, name: true, endsAt: true } } },
     }),
+    db.nameChange.findMany({ where: { personId: user.id }, orderBy: { createdAt: "asc" } }),
   ]);
 
   // Self-serve certificates: any event where this person's net credit is
@@ -90,6 +109,34 @@ export default async function MyAgendaPage() {
           </p>
         </div>
       )}
+
+      <section aria-label="Certificate name" style={{ marginTop: 32 }}>
+        <h2 style={{ marginBottom: 8 }}>Name on certificates</h2>
+        <p style={{ color: "var(--slate)", margin: "0 0 8px" }}>
+          Certificates print{" "}
+          <strong>{user.certificateName?.trim() || user.name}</strong>. Changing it re-issues your
+          certificates under a new credential ID; every change is recorded.
+        </p>
+        <form action={updateCertificateName} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            type="text"
+            name="certificateName"
+            defaultValue={user.certificateName ?? ""}
+            placeholder={user.name}
+            aria-label="Certificate name"
+            style={{ minWidth: 240 }}
+          />
+          <button type="submit">Update name</button>
+        </form>
+        {nameChanges.length > 0 && (
+          <p style={{ fontSize: 12.5, color: "var(--slate)", marginTop: 8 }}>
+            History:{" "}
+            {nameChanges
+              .map((n) => `“${n.fromName}” → “${n.toName}” (${fmtDayShort(n.createdAt)})`)
+              .join(" · ")}
+          </p>
+        )}
+      </section>
 
       <section aria-label="Off-platform PD" style={{ marginTop: 32 }}>
         <h2 style={{ marginBottom: 8 }}>Outside PD</h2>

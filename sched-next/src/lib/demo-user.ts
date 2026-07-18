@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { personForSession, SESSION_COOKIE } from "./auth";
 import { db } from "./db";
 
 // No auth today (ONEDAY.md cut): a cookie names the impersonated seed user.
@@ -14,6 +15,9 @@ export const DEMO_IDENTITIES = [
 
 export async function currentUser() {
   const jar = await cookies();
+  // A real magic-link session outranks the demo switcher.
+  const authed = await personForSession(jar.get(SESSION_COOKIE)?.value);
+  if (authed) return authed;
   const id = jar.get(COOKIE)?.value;
   const user = id
     ? await db.person.findUnique({ where: { id }, include: { roles: true } })

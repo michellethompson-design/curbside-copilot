@@ -38,6 +38,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {admin && <Link href="/approvals">Approvals</Link>}
             {admin && <Link href="/settings/credit-types">Credit settings</Link>}
           </nav>
+          <Link href="/login" style={{ color: "#b9c6d6", fontSize: 13, textDecoration: "none", whiteSpace: "nowrap" }}>
+            Sign in
+          </Link>
           {user && <UserSwitcher options={options} currentId={user.id} />}
         </header>
         {children}

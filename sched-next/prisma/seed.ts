@@ -96,6 +96,9 @@ async function main() {
   await prisma.claimEvent.deleteMany();
   await prisma.claim.deleteMany();
   await prisma.correctionRequest.deleteMany();
+  await prisma.loginToken.deleteMany();
+  await prisma.authSession.deleteMany();
+  await prisma.nameChange.deleteMany();
   await prisma.attendance.deleteMany();
   await prisma.agendaItem.deleteMany();
   await prisma.sessionCredit.deleteMany();

@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/demo-user";
+import Link from "next/link";
+import { isAdmin } from "@/lib/demo-user";
 import { getEventSchedule } from "@/lib/schedule";
 import { fmtDateRange, fmtDay, fmtTime, fmtUnits } from "@/lib/format";
 import { minutesToUnits, sessionMinutes, type RoundingMode } from "@/lib/credit-math";
@@ -60,6 +62,11 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
         <p className="sub">
           {fmtDateRange(schedule.startsAt, schedule.endsAt)} · {schedule.venue} ·{" "}
           {schedule.sessions.length} sessions
+          {isAdmin(user) && (
+            <>
+              {" "}· <Link href={`/events/${schedule.id}/manage`}>Manage sessions</Link>
+            </>
+          )}
         </p>
       </div>
       <ScheduleGrid sessions={sessions} canAgenda={!!user} />

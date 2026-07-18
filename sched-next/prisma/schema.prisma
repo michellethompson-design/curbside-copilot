@@ -28,6 +28,9 @@ model Person {
   email         String         @unique
   // Educator license number, e.g. a PA PPID for Act 48 reporting.
   licenseId     String?
+  // P5 legal-name handling: the name printed on certificates when it differs
+  // from the display name. Every change lands in the NameChange log.
+  certificateName String?
   // MVAR extension: additional license ids (JSON array) — multi-license
   // teachers are common in e.g. Vermont.
   licenseIdsJson String?
@@ -310,6 +313,39 @@ model CorrectionRequest {
   decidedAt     DateTime?
 
   @@index([status])
+}
+
+// Magic-link auth (CLAUDE.md: simple email magic link; no production auth).
+// A LoginToken is single-use and short-lived; consuming it mints an
+// AuthSession. In this demo build the "email" is shown on screen.
+model LoginToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  personId  String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  personId  String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// Append-only certificate-name history (P5 Legal Name Handling): who changed
+// what to what, when. Attendees see their own history; nothing is edited.
+model NameChange {
+  id          String   @id @default(cuid())
+  personId    String
+  fromName    String
+  toName      String
+  changedById String
+  createdAt   DateTime @default(now())
+
+  @@index([personId])
 }
 
 // Attendee personal agenda ("my schedule").

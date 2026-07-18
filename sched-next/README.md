@@ -25,8 +25,12 @@ switcher impersonates **Dana Whitfield** (PD coordinator), **Ruth Alvarez**
 ## Exit-test scripts
 
 ```bash
-npx tsx scripts/verify-ledger.ts   # 20 check-ins, correction offsets, guard rejects mutation
+npx tsx scripts/verify-ledger.ts   # 20 check-ins, correction offsets, guard rejects mutation, races, bulk
 npx tsx scripts/verify-mcp.ts      # MCP over stdio answers the missing-credits question (app must be running)
+npx tsx scripts/verify-p0.ts       # role-gated grant authority + state fetcher lifecycle
+npx tsx scripts/verify-wave2.ts    # UCID issuance, verification, supersession, presets, MVAR extensions
+npx tsx scripts/verify-wave3.ts    # off-platform claim state machine + two-person corrections
+npx tsx scripts/verify-wave4.ts    # magic-link auth, organizer CRUD + bulk paste, name-change reissue
 ```
 
 `verify-ledger.ts` writes to the database; run `npm run demo:reset` after.

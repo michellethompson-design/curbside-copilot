@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { currentUser, isAdmin } from "@/lib/demo-user";
 import { fmtDateRange } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage() {
+  const user = await currentUser();
   const events = await db.event.findMany({
     orderBy: { startsAt: "desc" },
     include: {
@@ -20,6 +22,11 @@ export default async function EventsPage() {
         <h1>Events</h1>
         <p className="sub">
           Every event this district runs, with its schedule and its credit record in one place.
+          {isAdmin(user) && (
+            <>
+              {" "}<Link href="/events/new">Create an event</Link>.
+            </>
+          )}
         </p>
       </div>
       <table className="grid">
