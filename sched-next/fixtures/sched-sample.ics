@@ -1,0 +1,84 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Sched//Sched.com//EN
+X-WR-CALNAME:Iowa FBLA-PBL 2019 (sample)
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:5a1b2c3d4e5f0001@sched.com
+DTSTART;TZID=America/Chicago:20190328T080000
+DTEND;TZID=America/Chicago:20190328T090000
+SUMMARY:Opening General Session
+LOCATION:Grand Ballroom
+CATEGORIES:General Session
+DESCRIPTION:Speakers: Dr. Alice Munro-Hayes\nWelcome\, awards preview\, and
+  the year in review for chapters statewide.
+END:VEVENT
+BEGIN:VEVENT
+UID:5a1b2c3d4e5f0002@sched.com
+DTSTART;TZID=America/Chicago:20190328T091500
+DTEND;TZID=America/Chicago:20190328T104500
+SUMMARY:Coaching Presentation Teams That Win
+LOCATION:Room 210
+CATEGORIES:Adviser PD
+DESCRIPTION:Speakers: J. Okonkwo\nA 90-minute working session on rubric-dri
+ ven practice cycles\; bring a team roster.
+END:VEVENT
+BEGIN:VEVENT
+UID:5a1b2c3d4e5f0003@sched.com
+DTSTART;TZID=America/Chicago:20190328T091500
+DTEND;TZID=America/Chicago:20190328T100500
+SUMMARY:Chapter Finances Without Tears
+LOCATION:Room 212
+CATEGORIES:Adviser PD
+DESCRIPTION:Speakers: Marisol Rivera\nBudgets\, fundraisers\, and the audit
+  trail your district office wants to see.
+END:VEVENT
+BEGIN:VEVENT
+UID:5a1b2c3d4e5f0004@sched.com
+DTSTART;TZID=America/Chicago:20190328T110000
+DTEND;TZID=America/Chicago:20190328T115000
+SUMMARY:Competitive Events Update 2019
+LOCATION:Room 210
+CATEGORIES:Competitive Events
+DESCRIPTION:Speakers: Kent S.\nRule changes and new events for the 2019 se
+ ason.
+END:VEVENT
+BEGIN:VEVENT
+UID:5a1b2c3d4e5f0005@sched.com
+DTSTART;TZID=America/Chicago:20190328T130000
+DTEND;TZID=America/Chicago:20190328T141500
+SUMMARY:Advising the Middle School Chapter
+LOCATION:Room 214
+CATEGORIES:Adviser PD
+DESCRIPTION:Panel discussion. Moderators: Dana Lampe
+END:VEVENT
+BEGIN:VEVENT
+UID:5a1b2c3d4e5f0006@sched.com
+DTSTART;TZID=America/Chicago:20190329T083000
+DTEND;TZID=America/Chicago:20190329T093000
+SUMMARY:Day 2 Keynote: Lead From Any Seat
+LOCATION:Grand Ballroom
+CATEGORIES:General Session
+DESCRIPTION:Speakers: Prof. Dan Feld
+END:VEVENT
+BEGIN:VEVENT
+UID:5a1b2c3d4e5f0007@sched.com
+DTSTART;TZID=America/Chicago:20190329T094500
+DTEND;TZID=America/Chicago:20190329T111500
+SUMMARY:State Officer Training Intensive
+LOCATION:Room 210
+CATEGORIES:Student Leadership
+DESCRIPTION:Speakers: T. Chen\, Kate Osei\nClosed session for elected offi
+ cers.
+END:VEVENT
+BEGIN:VEVENT
+UID:5a1b2c3d4e5f0008@sched.com
+DTSTART:20190329T170000Z
+DTEND:20190329T180000Z
+SUMMARY:Closing Awards Ceremony
+LOCATION:Grand Ballroom
+CATEGORIES:General Session
+DESCRIPTION:All chapters. Doors open 30 minutes early.
+END:VEVENT
+END:VCALENDAR

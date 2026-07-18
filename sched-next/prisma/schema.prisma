@@ -1,0 +1,361 @@
+// Stage 0 schema (SPEC.md). SQLite for the one-day build, but every type and
+// relation here is Postgres-compatible: no SQLite-only features, string-backed
+// enums (documented per field), cuid ids, UTC DateTimes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id          String        @id @default(cuid())
+  name        String
+  people      Person[]
+  events      Event[]
+  creditTypes CreditType[]
+  createdAt   DateTime      @default(now())
+}
+
+model Person {
+  id            String         @id @default(cuid())
+  orgId         String
+  org           Organization   @relation(fields: [orgId], references: [id])
+  name          String
+  email         String         @unique
+  // Educator license number, e.g. a PA PPID for Act 48 reporting.
+  licenseId     String?
+  // P5 legal-name handling: the name printed on certificates when it differs
+  // from the display name. Every change lands in the NameChange log.
+  certificateName String?
+  // MVAR extension: additional license ids (JSON array) — multi-license
+  // teachers are common in e.g. Vermont.
+  licenseIdsJson String?
+  roles         Role[]
+  attendance    Attendance[]
+  creditRecords CreditRecord[]
+  agendaItems   AgendaItem[]
+  certificates  CertificateIssue[]
+  claims        Claim[]
+  createdAt     DateTime       @default(now())
+
+  @@index([orgId])
+}
+
+// An issued certificate is a snapshot with a permanent identity (UCID).
+// Issues are append-only in spirit: a certificate is never edited — when the
+// underlying ledger changes, a new issue with a new UCID supersedes the old
+// one, and both remain forever verifiable. Status transitions (VALID →
+// SUPERSEDED | REVOKED) are the only permitted writes, made in
+// src/lib/certificates.ts.
+model CertificateIssue {
+  id             String   @id @default(cuid())
+  ucid           String   @unique
+  personId       String
+  person         Person   @relation(fields: [personId], references: [id])
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id])
+  // Snapshot at issuance — what the printed paper says.
+  personName     String
+  licenseId      String?
+  eventName      String
+  eventStartsAt  DateTime
+  eventEndsAt    DateTime
+  sessionCount   Int
+  // [{ creditType, unit, units }]
+  totalsJson     String
+  // Distinct attendance verification methods behind the credit.
+  methodsJson    String
+  // VALID | SUPERSEDED | REVOKED
+  status         String   @default("VALID")
+  supersededById String?
+  issuedAt       DateTime @default(now())
+
+  @@index([personId, eventId])
+}
+
+// Scoped role grants: ORG_OWNER | ORG_ADMIN | EVENT_ADMIN | ATTENDEE.
+// EVENT_ADMIN carries an eventId scope; the org-level roles do not.
+model Role {
+  id       String  @id @default(cuid())
+  personId String
+  person   Person  @relation(fields: [personId], references: [id])
+  level    String
+  eventId  String?
+  event    Event?  @relation(fields: [eventId], references: [id])
+
+  @@unique([personId, level, eventId])
+  @@index([personId])
+}
+
+model Event {
+  id            String         @id @default(cuid())
+  orgId         String
+  org           Organization   @relation(fields: [orgId], references: [id])
+  name          String
+  venue         String
+  // Legacy-Sched bridge: the source subdomain (e.g. "iowafblapbl2018") when
+  // this event was imported. Imports are idempotent per externalId.
+  externalId    String?
+  // DRAFT | PUBLISHED | ARCHIVED
+  status        String         @default("PUBLISHED")
+  startsAt      DateTime
+  endsAt        DateTime
+  sessions      Session[]
+  creditRecords CreditRecord[]
+  eventAdmins   Role[]
+  certificates  CertificateIssue[]
+
+  @@index([orgId])
+}
+
+model Session {
+  id          String          @id @default(cuid())
+  eventId     String
+  event       Event           @relation(fields: [eventId], references: [id])
+  title       String
+  description String          @default("")
+  // Speaker display names, comma-separated. A Speaker join table is a full-build
+  // concern; today nothing hangs on speaker identity.
+  speakers    String          @default("")
+  track       String          @default("General")
+  room        String
+  capacity    Int?
+  startsAt    DateTime
+  endsAt      DateTime
+  // Legacy-Sched bridge: stable source key (ICS UID or API event key), so
+  // re-running an import updates in place instead of duplicating.
+  externalId  String?
+  credits     SessionCredit[]
+  attendance  Attendance[]
+  agendaItems AgendaItem[]
+
+  @@unique([eventId, externalId])
+  @@index([eventId, startsAt])
+}
+
+// Credit currency: Act 48 hours, CEUs, contact hours...
+// roundingMode: FLOOR | NEAREST | CEILING, applied at incrementMinutes
+// granularity when session minutes convert to credit units.
+//
+// P0 curation model: status tracks where an entry sits in the catalog —
+// CANDIDATE (landed by a fetcher, awaiting admin review), DISTRICT_CANONICAL
+// (hand-defined by the org), STATE_CANONICAL (accepted from a state source).
+// Provenance fields record where a state-sourced entry came from and when.
+model CreditType {
+  id               String          @id @default(cuid())
+  orgId            String
+  org              Organization    @relation(fields: [orgId], references: [id])
+  name             String
+  // Display unit, e.g. "hours", "CEUs"
+  unit             String
+  // Minutes of instruction per 1.0 credit unit (60 for clock hours, 600 for CEUs)
+  minutesPerUnit   Int             @default(60)
+  incrementMinutes Int             @default(15)
+  roundingMode     String          @default("NEAREST")
+  // CANDIDATE | DISTRICT_CANONICAL | STATE_CANONICAL
+  status           String          @default("DISTRICT_CANONICAL")
+  // Jurisdiction code, e.g. "PA", "TX"; null for purely district-defined.
+  jurisdiction     String?
+  sourceUrl        String?
+  sourceFetchedAt  DateTime?
+  // Content hash of the source at fetch time; a changed hash re-opens review.
+  sourceRevision   String?
+  // HIGH | MEDIUM | LOW — how confidently the fetcher parsed the source.
+  sourceConfidence String?
+  sessionCredits   SessionCredit[]
+  creditRecords    CreditRecord[]
+  authorizations   CreditTypeAuthorization[]
+  claims           Claim[]
+
+  @@unique([orgId, jurisdiction, name])
+  @@index([orgId])
+}
+
+// Role-gated grant authority (the Pasadena ISD deal-breaker): a credit type
+// carrying authorizations can only be granted by an actor holding one of the
+// required roles. Enforced in the check-in write path, not in the UI.
+model CreditTypeAuthorization {
+  id           String     @id @default(cuid())
+  creditTypeId String
+  creditType   CreditType @relation(fields: [creditTypeId], references: [id])
+  // e.g. PIL_AUTHORIZED, GT_AUTHORIZED, READING_ACADEMIES_AUTHORIZED
+  requiredRole String
+
+  @@unique([creditTypeId, requiredRole])
+}
+
+// A session offers credit of a given type. Units are derived from the session's
+// scheduled minutes through the CreditType rounding policy unless fixedUnits
+// pins them explicitly (e.g. a keynote granted a flat 1.0).
+model SessionCredit {
+  id           String     @id @default(cuid())
+  sessionId    String
+  session      Session    @relation(fields: [sessionId], references: [id])
+  creditTypeId String
+  creditType   CreditType @relation(fields: [creditTypeId], references: [id])
+  fixedUnits   Float?
+
+  @@unique([sessionId, creditTypeId])
+}
+
+model Attendance {
+  id           String   @id @default(cuid())
+  sessionId    String
+  session      Session  @relation(fields: [sessionId], references: [id])
+  personId     String
+  person       Person   @relation(fields: [personId], references: [id])
+  // Verification method: ROSTER | SELF | QR
+  method       String
+  checkedInAt  DateTime @default(now())
+  // Who performed the check-in (the actor of record for retro check-ins).
+  recordedById String?
+
+  @@unique([sessionId, personId])
+  @@index([personId])
+}
+
+// The ledger. Append-only: no updates, no deletes, ever — enforced in
+// src/lib/db.ts on top of this schema. Corrections are offsetting entries
+// (kind ADJUSTMENT, negative units, reason required, offsets pointing at the
+// entry being corrected). Transcripts and compliance reports are derived views.
+model CreditRecord {
+  id           String        @id @default(cuid())
+  personId     String
+  person       Person        @relation(fields: [personId], references: [id])
+  // Null for off-platform credit (approved claims), which has no event.
+  eventId      String?
+  event        Event?        @relation(fields: [eventId], references: [id])
+  claimId      String?
+  claim        Claim?        @relation(fields: [claimId], references: [id])
+  sessionId    String?
+  creditTypeId String
+  creditType   CreditType    @relation(fields: [creditTypeId], references: [id])
+  units        Float
+  // AWARD | ADJUSTMENT
+  kind         String        @default("AWARD")
+  reason       String?
+  // MVAR per-jurisdiction extension fields, JSON object — e.g.
+  // {"credit_type_authorization_role":"PIL_AUTHORIZED","loi_90_fiscal_year":2026}
+  extensionsJson String?
+  offsetsId    String?
+  offsets      CreditRecord? @relation("Correction", fields: [offsetsId], references: [id])
+  offsetBy     CreditRecord[] @relation("Correction")
+  createdAt    DateTime      @default(now())
+
+  @@index([personId, creditTypeId])
+  @@index([eventId])
+}
+
+// Off-platform PD claim (P1 SLC-2): a teacher submits outside learning —
+// a regional conference, a book study — with evidence; an admin reviews.
+// Approval writes a ledger AWARD (evidence axis: self-reported, admin-
+// approved). State machine: SUBMITTED → UNDER_REVIEW → APPROVED | REJECTED |
+// CHANGES_REQUESTED → (resubmit) SUBMITTED. Every transition lands in the
+// append-only ClaimEvent trail.
+model Claim {
+  id             String         @id @default(cuid())
+  orgId          String
+  personId       String
+  person         Person         @relation(fields: [personId], references: [id])
+  creditTypeId   String
+  creditType     CreditType     @relation(fields: [creditTypeId], references: [id])
+  title          String
+  provider       String
+  activityDate   DateTime
+  unitsRequested Float
+  note           String         @default("")
+  evidencePath   String?
+  evidenceName   String?
+  status         String         @default("SUBMITTED")
+  events         ClaimEvent[]
+  creditRecords  CreditRecord[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([orgId, status])
+  @@index([personId])
+}
+
+model ClaimEvent {
+  id         String   @id @default(cuid())
+  claimId    String
+  claim      Claim    @relation(fields: [claimId], references: [id])
+  actorId    String
+  fromStatus String
+  toStatus   String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([claimId])
+}
+
+// Two-person corrections (P1 override approval): an admin REQUESTS an undo
+// with a reason code; a DIFFERENT admin approves, which executes the
+// offsetting ledger entries. Requests are their own record so the approval
+// trail survives independently of the ledger it acts on.
+model CorrectionRequest {
+  id            String    @id @default(cuid())
+  sessionId     String
+  personId      String
+  requestedById String
+  // DUPLICATE_CHECKIN | WRONG_PERSON | LEFT_EARLY | DATA_ENTRY_ERROR | OTHER
+  reasonCode    String
+  reason        String
+  // PENDING | APPROVED | REJECTED
+  status        String    @default("PENDING")
+  decidedById   String?
+  decisionNote  String?
+  createdAt     DateTime  @default(now())
+  decidedAt     DateTime?
+
+  @@index([status])
+}
+
+// Magic-link auth (CLAUDE.md: simple email magic link; no production auth).
+// A LoginToken is single-use and short-lived; consuming it mints an
+// AuthSession. In this demo build the "email" is shown on screen.
+model LoginToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  personId  String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  personId  String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// Append-only certificate-name history (P5 Legal Name Handling): who changed
+// what to what, when. Attendees see their own history; nothing is edited.
+model NameChange {
+  id          String   @id @default(cuid())
+  personId    String
+  fromName    String
+  toName      String
+  changedById String
+  createdAt   DateTime @default(now())
+
+  @@index([personId])
+}
+
+// Attendee personal agenda ("my schedule").
+model AgendaItem {
+  id        String   @id @default(cuid())
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id])
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([personId, sessionId])
+}

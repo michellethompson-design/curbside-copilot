@@ -1,0 +1,67 @@
+<!-- SAMPLE FIXTURE for the state credit-type fetcher.
+     Shaped like a Texas Education Agency CPE reference page so the parser is
+     tested against realistic structure. This file is NOT TEA content; run the
+     fetcher with a --url against the live page to import real data. -->
+<html>
+<head><title>Continuing Professional Education (CPE) — Credit Types (SAMPLE)</title></head>
+<body>
+  <h1>Continuing Professional Education (CPE)</h1>
+  <p>Credit types recognized for standard certificate renewal. (Sample data.)</p>
+  <table>
+    <tr>
+      <th>Credit type</th>
+      <th>Unit</th>
+      <th>Minutes per unit</th>
+      <th>Increment (minutes)</th>
+      <th>Rounding</th>
+      <th>Authorization required</th>
+      <th>Notes</th>
+    </tr>
+    <tr>
+      <td>TX CPE Hours</td>
+      <td>hours</td>
+      <td>60</td>
+      <td>15</td>
+      <td>floor</td>
+      <td></td>
+      <td>Standard certificate renewal: 150 CPE hours per five-year period.</td>
+    </tr>
+    <tr>
+      <td>GT Update Hours</td>
+      <td>hours</td>
+      <td>60</td>
+      <td>30</td>
+      <td>floor</td>
+      <td>GT authorized</td>
+      <td>Six-hour annual update for gifted/talented assignment.</td>
+    </tr>
+    <tr>
+      <td>Reading Academies Credit</td>
+      <td>modules</td>
+      <td>600</td>
+      <td>60</td>
+      <td>floor</td>
+      <td>Reading Academies authorized</td>
+      <td>HB 3 Reading Academies completion tracking, K-3 teachers and principals.</td>
+    </tr>
+    <tr>
+      <td>ESL Supplemental Prep Hours</td>
+      <td>hours</td>
+      <td>60</td>
+      <td>15</td>
+      <td>nearest</td>
+      <td></td>
+      <td>Preparation toward ESL supplemental certification exam.</td>
+    </tr>
+    <tr>
+      <td>T-TESS Calibration Hours</td>
+      <td>hours</td>
+      <td>60</td>
+      <td>30</td>
+      <td>ceiling</td>
+      <td>District admin</td>
+      <td>Appraiser calibration; counts toward appraiser recertification.</td>
+    </tr>
+  </table>
+</body>
+</html>

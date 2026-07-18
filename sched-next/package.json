@@ -1,0 +1,34 @@
+{
+  "name": "sched-next",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sched Next — PD-first, API-first event platform prototype. See CLAUDE.md, SPEC.md, ONEDAY.md.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "demo:reset": "prisma db push --skip-generate && tsx prisma/seed.ts",
+    "mcp": "tsx mcp/server.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@prisma/client": "^6.8.0",
+    "next": "^15.3.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "prisma": "^6.8.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}
