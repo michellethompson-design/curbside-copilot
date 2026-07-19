@@ -1,106 +1,373 @@
 ---
 name: cash-runway
-description: Compute and report the business's cash runway — cash on hand, monthly net burn, and months of runway remaining — pulling live numbers from connected finance tools (QuickBooks, Ramp, Stripe) or from exported statements when no tools are connected. Use this whenever the user asks about runway, burn rate, "how many months of cash do we have", "can we afford X", cash position, when they'll run out of money, or whether a planned hire/spend fits the budget — even if they don't say the word "runway".
+description: Analyze QuickBooks financial reports and calculate cash runway, burn, liquidity risk, and scenario forecasts. Use when asked about cash, runway, burn, expenses, collections, liquidity, financial forecasts, or CFO reporting.
+argument-hint: "[optional scenario or reporting period]"
 ---
 
-# Cash Runway
+# Role
 
-Produce a clear, decision-ready answer to one question: **how long can the
-business keep operating at its current pace before cash runs out?**
+Act as a rigorous SaaS CFO analyzing company financial data.
 
-Runway is only useful if the inputs are real. Prefer live data from connected
-finance tools; fall back to files the user provides; never invent numbers. If a
-required input is unavailable, say exactly what's missing and compute what you
-can with what you have, labeling it clearly as partial.
+Your job is to calculate cash runway accurately, explain what changed, identify liquidity risks, and recommend actions.
 
-## Step 1 — Establish cash on hand
+Do not invent missing figures.
 
-Gather every cash balance the business can actually spend, as of today:
+Do not treat accounting profit as cash flow.
 
-- **Bank / operating accounts** — QuickBooks balance sheet (bank-type accounts)
-  or Ramp business account balance if Ramp is the operating account.
-- **Treasury / savings** — Ramp treasury or investment account balances.
-- **Stripe balance** — funds captured but not yet paid out.
+Do not provide a runway figure unless you have identified:
 
-Watch for double counting: a Stripe payout that has already landed in the bank
-account must not be counted twice, and QuickBooks bank balances may lag real
-bank balances by unreconciled days. When two sources disagree, use the more
-current one and note the discrepancy in the report.
+1. Available unrestricted cash
+2. The applicable measurement date
+3. Historical cash inflows
+4. Historical cash outflows
+5. Known future obligations
+6. The burn methodology used
 
-Do **not** count accounts receivable as cash. Report AR separately as upside
-(Step 4) — unpaid invoices don't make payroll.
+If required data is missing, state exactly what is missing and calculate only what the available evidence supports.
 
-## Step 2 — Establish monthly net burn
+# Data discovery
 
-Net burn = cash out minus cash in, per month. Compute it from the **trailing
-three full months** — a single month is too noisy (annual renewals, one-time
-payments), and longer windows hide recent changes in spending.
+Search the current project for financial files, including:
 
-- Best source: a monthly cash-flow statement (QuickBooks cash flow report).
-- Otherwise: monthly expense totals (Ramp transactions, bank export) minus
-  monthly cash receipts (Stripe payouts, deposits).
+- Balance Sheet
+- Profit and Loss
+- Statement of Cash Flows
+- General Ledger
+- Bank account balances
+- Credit card balances
+- Accounts Receivable Aging
+- Accounts Payable Aging
+- Payroll reports
+- Debt schedules
+- Budget or forecast files
+- Planned hiring data
+- Recurring vendor expenses
 
-Then adjust for what the trailing average can't see:
+Before calculating, list:
 
-- **Remove true one-offs** (equipment purchase, legal settlement) — but only if
-  genuinely non-recurring. Annual subscriptions are recurring; amortize them
-  monthly instead of removing them.
-- **Add known upcoming changes**: a signed hire, a rent increase, a committed
-  new contract. State each adjustment and its monthly impact explicitly.
+- Files analyzed
+- Reporting periods covered
+- Latest transaction or report date
+- Material exclusions
+- Data-quality concerns
 
-If cash in exceeds cash out, the business is cash-flow positive — say so
-plainly; runway is not the binding constraint.
+Never assume a report is current merely because its filename appears current.
 
-## Step 3 — Compute runway
+# Definitions
 
-```
-runway (months) = cash on hand ÷ monthly net burn
-```
+## Unrestricted cash
 
-Report the date cash reaches zero, not just a month count — "out of cash
-around March 2027" lands harder than "8.3 months". Round to one decimal at
-most; false precision undermines trust in the whole report.
+Include:
 
-## Step 4 — Scenarios and near-term risks
+- Operating checking accounts
+- Operating savings accounts
+- Money-market accounts available for operations
+- Other cash equivalents available without restriction
 
-A single number hides the range. Always give three cases:
+Exclude unless explicitly confirmed as available:
 
-- **Base**: trailing-average burn with the Step 2 adjustments.
-- **Conservative**: worst single month of burn in the trailing window, and
-  assume slow-paying AR stays unpaid.
-- **Upside**: base burn plus collection of current AR (from QuickBooks AR
-  aging) and any committed revenue.
+- Customer funds held on behalf of others
+- Restricted cash
+- Security deposits
+- Undeposited funds
+- Payment-clearing balances
+- Credit-card availability
+- Unfunded credit facilities
 
-Also surface anything that breaks the smooth-burn assumption within the
-runway window: large AP coming due (QuickBooks AP aging), annual renewals,
-tax payments, debt payments.
+Show each account included in the cash total.
 
-## Report format
+## Gross cash outflow
 
-Keep the whole report short enough to read in one screen:
+Gross cash outflow is actual operating cash paid during the period.
 
-```
-# Cash Runway — [date]
+Exclude:
 
-**Runway: X.X months — cash reaches zero around [Month Year].**
+- Transfers between company-owned accounts
+- Debt principal movements when separately analyzed
+- Noncash depreciation
+- Noncash amortization
+- Accrual-only expenses not yet paid
+- Duplicate transactions
+- Owner distributions, unless part of normal forecasted cash usage
 
-## Cash on hand: $XXX,XXX
-[one line per source with balance and as-of date]
+## Net burn
 
-## Monthly net burn: $XX,XXX
-[trailing 3-month figures, adjustments made and why]
+For each month:
 
-## Scenarios
-- Conservative: X.X months ([driver])
-- Base: X.X months
-- Upside: X.X months ([driver])
+Net burn = operating cash outflows minus operating cash inflows
 
-## Watch items
-[dated, specific: "Annual insurance renewal ~$12k due Oct", "AR >60 days: $18k"]
-```
+Alternatively, when reliable bank-level cash balances are available:
 
-If the user asked a specific question ("can we afford a $90k hire?"), answer
-it first, in one sentence, before the report: state the new burn, the new
-runway, and whether that leaves an acceptable buffer (12+ months is generally
-comfortable; under 6 means the decision needs a revenue or funding plan
-attached).
+Net burn = beginning unrestricted cash minus ending unrestricted cash
+
+Adjust for:
+
+- Financing proceeds
+- Capital contributions
+- Transfers
+- Acquisitions
+- Debt draws
+- Debt repayments
+- Other nonoperating cash movements
+
+Show which method was used.
+
+A negative net burn means the company was cash-flow positive.
+
+## Runway
+
+Base runway:
+
+Runway months = unrestricted cash divided by normalized monthly net burn
+
+Projected zero-cash date:
+
+Measurement date plus runway months
+
+Do not calculate finite runway when normalized net burn is zero or negative. State that the company is currently cash-flow neutral or positive and explain why a conventional runway figure is not meaningful.
+
+# Required calculations
+
+Calculate, where supported:
+
+1. Current unrestricted cash
+2. Current liabilities due within 30, 60, and 90 days
+3. Accounts receivable expected within 30, 60, and 90 days
+4. Gross monthly cash outflow
+5. Net monthly burn
+6. Three-month average net burn
+7. Six-month average net burn
+8. Trailing-12-month average net burn
+9. Latest-month net burn
+10. Normalized recurring burn
+11. Base-case runway
+12. Conservative runway
+13. Expected date cash reaches:
+    - 12 months of runway
+    - 6 months of runway
+    - zero
+14. Change in runway from the prior month or quarter, where prior data exists
+
+# Normalization
+
+Separate:
+
+- Recurring operating expenses
+- One-time expenses
+- Financing activity
+- Capital expenditures
+- Annual or irregular payments
+- Timing-related collections
+- Owner or shareholder activity
+- Intercompany transfers
+
+Do not remove an expense merely because management dislikes it.
+
+Label every adjustment and show its effect on burn.
+
+Produce both:
+
+- Reported cash burn
+- Normalized cash burn
+
+# Forward-looking forecast
+
+Historical burn alone is not a forecast.
+
+Build a monthly cash forecast using:
+
+- Opening cash
+- Expected customer collections
+- Contracted or highly probable revenue
+- Payroll
+- Payroll taxes
+- Vendor payments
+- Debt service
+- Tax payments
+- Annual renewals
+- Planned hires
+- Planned terminations
+- Capital expenditures
+- Known exceptional items
+
+Classify assumptions as:
+
+- Contracted
+- Highly probable
+- Management assumption
+- Unknown
+
+Never quietly treat an aspirational sales target as cash.
+
+# Scenarios
+
+Unless the user specifies otherwise, calculate:
+
+## Base case
+
+Use the most supportable operating forecast and normalized current spending.
+
+## Downside case
+
+Assume:
+
+- Collections arrive later than expected
+- New revenue is limited to contracted or highly probable revenue
+- Variable expenses adjust only where evidence supports it
+- Planned expenses remain unless management has approved their removal
+
+## Cost-control case
+
+Include only specifically identified and feasible reductions.
+
+Do not describe layoffs, hiring freezes, or vendor cancellation as savings unless timing and implementation are included.
+
+When the user supplies a scenario in $ARGUMENTS, calculate that scenario as well.
+
+# SaaS considerations
+
+Where the data permits, distinguish:
+
+- Booked revenue
+- Recognized revenue
+- Invoiced revenue
+- Collected cash
+- Deferred revenue
+- Recurring revenue
+- Services or one-time revenue
+
+Do not substitute ARR or MRR for cash collections.
+
+Flag:
+
+- Annual contracts that create lumpy collections
+- High customer concentration
+- Increasing days sales outstanding
+- Past-due receivables
+- Refund exposure
+- Payment processor reserves
+- Deferred-revenue obligations
+- Large annual software renewals
+- Payroll concentration
+- Debt covenants or repayment requirements
+
+# Validation rules
+
+Before finalizing:
+
+1. Reconcile reported cash to the Balance Sheet.
+2. Compare reported cash with bank-level balances when available.
+3. Confirm the date of the cash balance.
+4. Check whether internal transfers inflate inflows or outflows.
+5. Check whether owner contributions or financing distort burn.
+6. Check for duplicated accounts or transactions.
+7. Confirm whether payroll liabilities and taxes are included.
+8. Confirm whether accounts receivable is collectible rather than merely recorded.
+9. Confirm whether accounts payable and credit-card balances are included in the forecast.
+10. Recalculate all formulas independently.
+
+If data does not reconcile, present the discrepancy. Do not force the figures to match.
+
+# Output format
+
+## CFO Summary
+
+State:
+
+- Cash available as of the measurement date
+- Base runway
+- Conservative runway
+- Primary reason runway changed
+- Most urgent financial concern
+- Most important management decision
+
+## Key Metrics
+
+| Metric | Current | Prior Period | Change |
+|---|---:|---:|---:|
+| Unrestricted cash | | | |
+| Monthly gross cash outflow | | | |
+| Three-month net burn | | | |
+| Six-month net burn | | | |
+| Normalized net burn | | | |
+| Base runway | | | |
+| Downside runway | | | |
+
+## Cash Reconciliation
+
+List every cash account included and excluded.
+
+## Burn Analysis
+
+Show monthly inflows, outflows, net burn, adjustments, and normalized burn.
+
+## Runway Scenarios
+
+| Scenario | Monthly Net Burn | Runway | Estimated Zero-Cash Date |
+|---|---:|---:|---|
+| Historical three-month | | | |
+| Base forecast | | | |
+| Downside | | | |
+| Cost-control | | | |
+
+## Material Changes
+
+Explain the largest changes in:
+
+- Revenue collections
+- Payroll
+- Contractors
+- Infrastructure
+- Software
+- Marketing
+- Professional services
+- Taxes
+- Debt
+- Other significant categories
+
+## Risks and Unknowns
+
+Rank each issue:
+
+- Critical
+- High
+- Moderate
+- Low
+
+State the evidence and potential financial effect.
+
+## Recommended Actions
+
+For every recommendation include:
+
+- Expected monthly cash impact
+- One-time cost
+- Earliest realistic implementation date
+- Runway impact
+- Owner or function responsible
+- Confidence level
+
+## Supporting Calculations
+
+Show formulas, source periods, assumptions, and adjustments.
+
+## Confidence
+
+Provide:
+
+- Overall confidence: High, Medium, or Low
+- Data completeness
+- Last updated date
+- Missing information
+- Factors that could materially change the answer
+
+# Guardrails
+
+- Never fabricate a figure.
+- Never double-count cash, revenue, receivables, or expenses.
+- Never count a credit limit as cash.
+- Never treat booked ARR as collected cash.
+- Never rely solely on net income to calculate runway.
+- Never imply audit-level assurance.
+- Never present a forecast as certain.
+- Never expose bank-account numbers, employee compensation details, tax IDs, or other unnecessary sensitive information.
